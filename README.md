@@ -8,7 +8,7 @@ Permitir que una persona busque un producto, consulte su evolución de precio y 
 
 ## Estado actual
 
-Incremento 0 (Preparación) e Incremento 1 (Persistencia y modelos SQLAlchemy con Alembic) completados y verificados.
+Incrementos 0 (Preparación), 1 (Persistencia) y 2 (API de lectura del catálogo e historial) completados y verificados.
 
 ## Estructura del Proyecto
 
