@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.db.models import Category, PriceObservation, Product, Store, StoreProduct
@@ -21,11 +21,50 @@ class ProductRepository:
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Product], int]:
-        """Fetch active products with optional text search and category filter."""
+        """Fetch active products with optional multi-field text search and category filter."""
         base_query = select(Product).join(Product.category).where(Product.is_active.is_(True))
 
         if q and q.strip():
-            base_query = base_query.where(Product.name.ilike(f"%{q.strip()}%"))
+            # Synonyms & typo corrections for PC hardware components
+            synonyms_map: dict[str, list[str]] = {
+                "gpu": ["tarjeta", "video", "rtx", "gtx", "radeon", "geforce", "gpu"],
+                "cpu": ["procesador", "ryzen", "core i", "intel", "amd", "cpu"],
+                "motherboard": ["placa", "madre", "motherboard", "b650", "b760", "z790"],
+                "motherboards": ["placa", "madre", "motherboard"],
+                "placa": ["placa", "madre", "motherboard"],
+                "ram": ["ram", "memoria", "ddr4", "ddr5"],
+                "memoria": ["ram", "memoria", "ddr4", "ddr5"],
+                "memorias": ["ram", "memoria", "ddr4", "ddr5"],
+                "meoria": ["ram", "memoria", "ddr4", "ddr5"],  # Corrección tipográfica
+                "meorla": ["ram", "memoria", "ddr4", "ddr5"],  # Corrección tipográfica
+                "psu": ["fuente", "poder", "modular", "850w", "700w", "gold"],
+                "fuente": ["fuente", "poder", "psu", "modular"],
+                "fuentes": ["fuente", "poder", "psu", "modular"],
+                "cooler": ["refrigeracion", "cooler", "liquida", "aire", "kraken"],
+                "coolers": ["refrigeracion", "cooler", "liquida", "aire", "kraken"],
+                "refrigeracion": ["refrigeracion", "cooler", "liquida", "aire", "kraken"],
+                "refrigeración": ["refrigeracion", "cooler", "liquida", "aire", "kraken"],
+                "liquida": ["refrigeracion", "liquida", "kraken"],
+                "líquida": ["refrigeracion", "liquida", "kraken"],
+                "aire": ["refrigeracion", "aire", "ak620"],
+            }
+
+            raw_terms = q.strip().lower().split()
+            for term in raw_terms:
+                patterns_to_check = [f"%{term}%"]
+                if term in synonyms_map:
+                    for syn in synonyms_map[term]:
+                        patterns_to_check.append(f"%{syn}%")
+
+                term_clauses = []
+                for pat in patterns_to_check:
+                    term_clauses.extend([
+                        Product.name.ilike(pat),
+                        Product.brand.ilike(pat),
+                        Product.model.ilike(pat),
+                        Category.name.ilike(pat),
+                    ])
+                base_query = base_query.where(or_(*term_clauses))
 
         if category_slug and category_slug.strip():
             base_query = base_query.where(Category.slug == category_slug.strip().lower())

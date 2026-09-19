@@ -1,50 +1,93 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { Footer } from "./components/common/Footer";
+import { Navbar } from "./components/common/Navbar";
+import { CatalogPage } from "./pages/CatalogPage";
+import { HomePage } from "./pages/HomePage";
+import { ProductDetailPage } from "./pages/ProductDetailPage";
 
 export const App: React.FC = () => {
+  const [currentLocation, setCurrentLocation] = useState({
+    pathname: window.location.pathname,
+    search: window.location.search,
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentLocation({
+        pathname: window.location.pathname,
+        search: window.location.search,
+      });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const navigate = (to: string) => {
+    const url = new URL(to, window.location.origin);
+    window.history.pushState({}, "", url.toString());
+    setCurrentLocation({
+      pathname: url.pathname,
+      search: url.search,
+    });
+    window.scrollTo(0, 0);
+  };
+
+  const updateUrlParams = (params: { q?: string; category?: string; page?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params.q?.trim()) searchParams.set("q", params.q.trim());
+    if (params.category?.trim()) searchParams.set("category", params.category.trim());
+    if (params.page && params.page > 1) searchParams.set("page", params.page.toString());
+
+    const queryString = searchParams.toString();
+    const newRelativePath = `${window.location.pathname}${queryString ? `?${queryString}` : ""}`;
+    window.history.pushState({}, "", newRelativePath);
+    setCurrentLocation({
+      pathname: window.location.pathname,
+      search: queryString ? `?${queryString}` : "",
+    });
+  };
+
+  // Route matching
+  const renderCurrentRoute = () => {
+    const { pathname, search } = currentLocation;
+    const searchParams = new URLSearchParams(search);
+
+    // Detail route: /products/:id
+    const productDetailMatch = pathname.match(/^\/products\/([^/]+)$/);
+    if (productDetailMatch) {
+      const productId = productDetailMatch[1];
+      return <ProductDetailPage productId={productId} onNavigate={navigate} />;
+    }
+
+    // Catalog route: /products
+    if (pathname === "/products" || pathname.startsWith("/products/")) {
+      const q = searchParams.get("q") || "";
+      const category = searchParams.get("category") || "";
+      const pageStr = searchParams.get("page");
+      const page = pageStr ? parseInt(pageStr, 10) || 1 : 1;
+
+      return (
+        <CatalogPage
+          initialQuery={q}
+          initialCategory={category}
+          initialPage={page}
+          onNavigate={navigate}
+          updateUrlParams={updateUrlParams}
+        />
+      );
+    }
+
+    // Home route: /
+    return <HomePage onNavigate={navigate} />;
+  };
+
   return (
-    <main
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        padding: "2rem",
-        textAlign: "center",
-      }}
-    >
-      <div
-        style={{
-          background: "#1e293b",
-          border: "1px solid #334155",
-          borderRadius: "12px",
-          padding: "2.5rem 3rem",
-          maxWidth: "600px",
-          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3)",
-        }}
-      >
-        <span
-          style={{
-            display: "inline-block",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            color: "#38bdf8",
-            marginBottom: "0.75rem",
-          }}
-        >
-          Incremento 0
-        </span>
-        <h1 style={{ fontSize: "2rem", marginBottom: "1rem", color: "#f8fafc" }}>
-          Price Tracker Platform
-        </h1>
-        <p style={{ color: "#94a3b8", fontSize: "1.05rem", lineHeight: "1.6" }}>
-          Estructura base del frontend inicializada correctamente. Lista para el catálogo y el
-          historial de precios.
-        </p>
-      </div>
-    </main>
+    <div className="app-container">
+      <Navbar currentPath={currentLocation.pathname} onNavigate={navigate} />
+      <main className="main-content">{renderCurrentRoute()}</main>
+      <Footer />
+    </div>
   );
 };
 
