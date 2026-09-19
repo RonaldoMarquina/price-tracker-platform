@@ -8,7 +8,7 @@ Permitir que una persona busque un producto, consulte su evolución de precio y 
 
 ## Estado actual
 
-Incremento 0 completado (Preparación del monorepo, configuración de entorno, base de datos local con Docker Compose y tooling de calidad y pruebas).
+Incremento 0 (Preparación) e Incremento 1 (Persistencia y modelos SQLAlchemy con Alembic) completados y verificados.
 
 ## Estructura del Proyecto
 
