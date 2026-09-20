@@ -101,7 +101,7 @@ class ProductRepository:
                 Store.is_active.is_(True),
                 PriceObservation.price.is_not(None),
                 PriceObservation.price > 0,
-                PriceObservation.availability != "out_of_stock",
+                PriceObservation.availability == "in_stock",
             )
             .order_by(PriceObservation.captured_at.desc())
             .limit(1)
@@ -116,8 +116,8 @@ class ProductRepository:
     ) -> tuple[Decimal, str, str] | None:
         """Find the lowest active in-stock price observation for a product across all stores.
 
-        Excludes observations with price=None, price<=0, or availability='out_of_stock'.
-        An out-of-stock product will never appear as the lowest/best price.
+        Excludes observations with price=None, price<=0, availability='out_of_stock',
+        or availability='unknown'. Only explicit in_stock products can compete as best offer.
         """
         subq = (
             select(
@@ -150,7 +150,7 @@ class ProductRepository:
                 Store.is_active.is_(True),
                 PriceObservation.price.is_not(None),
                 PriceObservation.price > 0,
-                PriceObservation.availability != "out_of_stock",
+                PriceObservation.availability == "in_stock",
             )
             .order_by(PriceObservation.price.asc())
             .limit(1)

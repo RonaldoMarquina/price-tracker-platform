@@ -51,6 +51,7 @@ def seed_dev_data(db: Session) -> dict[str, int]:
         {"name": "Impacto", "domain": "impacto.com.pe", "is_active": False},
         {"name": "Memory Kings", "domain": "memorykings.pe", "is_active": True},
         {"name": "NECS Ayacucho", "domain": "necs.pe", "is_active": True},
+        {"name": "Computer Shop Perú", "domain": "computershopperu.com", "is_active": True},
         # Sercoplus is kept offline-only / deactivated due to Cloudflare bot challenge
         {"name": "Sercoplus", "domain": "sercoplus.com", "is_active": False},
     ]
@@ -58,8 +59,7 @@ def seed_dev_data(db: Session) -> dict[str, int]:
     for store_data in stores_data:
         existing = db.scalars(
             select(Store).where(
-                (Store.domain == store_data["domain"])
-                | (Store.name == store_data["name"])
+                (Store.domain == store_data["domain"]) | (Store.name == store_data["name"])
             )
         ).first()
         is_active = store_data.get("is_active", True)
@@ -75,7 +75,6 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             stores_map[existing.domain] = existing
             if existing.name == "Memory Kings":
                 stores_map["memorykings.com.pe"] = existing
-
 
     # 3. Products across all 6 core categories
     products_data = [
@@ -129,6 +128,7 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "category_slug": "placas-madre",
             "brand": "ASUS",
             "model": "ROG-STRIX-B650-A",
+            "mpn": "90MB1BP0-M0EAY0",
             "image_url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400",
         },
         {
@@ -201,6 +201,33 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "model": "PRO H610M-A DDR4",
             "mpn": "PRO H610M-A DDR4",
             "image_url": "https://necs.pe/15305-large_default/mainboard-msi-pro-h610m-a-ddr4-lga-1700.jpg",
+        },
+        {
+            "name": "DeepCool AK620 Digital SE ARGB Black",
+            "slug": "deepcool-ak620-digital-se-argb-black",
+            "category_slug": "refrigeracion",
+            "brand": "DeepCool",
+            "model": "AK620 Digital SE",
+            "mpn": "R-AK620-BKADMN-GJD",
+            "image_url": "https://computershopperu.com/152912-thickbox_default/deepcool-ak620-digital-se-black-argb-cooler-cpu-refrigeracion-aire-compatible-amdintel-pnr-ak620-bkadmn-gjd.jpg",
+        },
+        {
+            "name": "Memoria USB Kingston DataTraveler Exodia M 64GB",
+            "slug": "kingston-datatraveler-exodia-m-64gb",
+            "category_slug": "almacenamiento",
+            "brand": "Kingston",
+            "model": "DataTraveler Exodia M",
+            "mpn": "DTXM/64GB",
+            "image_url": "https://necs.pe/7901-large_default/memoria-usb-kingston-64gb-datatraveler-exodia-m-usb-32-azul-negro.jpg",
+        },
+        {
+            "name": "Memoria RAM Kingston Fury Beast RGB DDR5 32GB 5200MHz",
+            "slug": "kingston-fury-beast-rgb-ddr5-32gb-5200mhz",
+            "category_slug": "memorias-ram",
+            "brand": "Kingston",
+            "model": "Fury Beast RGB DDR5",
+            "mpn": "KF552C40BBA-32",
+            "image_url": "https://computershopperu.com/131062-thickbox_default/memoria-32gb-ddr5-kingston-fury-beast-rgb-black-bus-5200mhz-pnkf552c40bba-32.jpg",
         },
     ]
     products_map: dict[str, Product] = {}
@@ -353,6 +380,36 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "store_domain": "memorykings.pe",
             "product_url": "https://www.memorykings.pe/producto/93353/grabador-dvd-usb-super-multi-lg-gp65nb60-slim",
             "external_sku": "93353",
+        },
+        {
+            "product_slug": "asus-rog-strix-b650-a-gaming-wifi",
+            "store_domain": "computershopperu.com",
+            "product_url": "https://computershopperu.com/producto/placa-socket-amd-am5/23146-placa-asus-rog-strix-b650-a-gaming-wifi-atx-ddr5-amd-am5-pn90mb1bp0-m0eay0.html",
+            "external_sku": "114026001",
+        },
+        {
+            "product_slug": "deepcool-ak620-digital-se-argb-black",
+            "store_domain": "computershopperu.com",
+            "product_url": "https://computershopperu.com/producto/refrigeracion-aire/40069-deepcool-ak620-digital-se-black-argb-cooler-cpu-refrigeracion-aire-compatible-amdintel-pnr-ak620-bkadmn-gjd.html",
+            "external_sku": "269645564",
+        },
+        {
+            "product_slug": "kingston-datatraveler-exodia-m-64gb",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/3849",
+            "external_sku": "1190",
+        },
+        {
+            "product_slug": "kingston-datatraveler-exodia-m-64gb",
+            "store_domain": "computershopperu.com",
+            "product_url": "https://computershopperu.com/producto/memoria-usb/29942-memoria-usb-64gb-kingston-datatraveler-exodia-m-azul-version-32-pnkc-u2l64-7lb.html",
+            "external_sku": "302900002",
+        },
+        {
+            "product_slug": "kingston-fury-beast-rgb-ddr5-32gb-5200mhz",
+            "store_domain": "computershopperu.com",
+            "product_url": "https://computershopperu.com/producto/memoria-ram-ddr5-pc/24247-memoria-32gb-ddr5-kingston-fury-beast-rgb-black-bus-5200mhz-pnkf552c40bba-32.html",
+            "external_sku": "271129008",
         },
     ]
     store_products_map: dict[tuple[str, str], StoreProduct] = {}
@@ -571,6 +628,51 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "availability": "in_stock",
             "source_hash": "mk-obs-gp65-01",
             "captured_at": datetime(2026, 9, 19, 12, 35, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "asus-rog-strix-b650-a-gaming-wifi",
+            "store_domain": "computershopperu.com",
+            "price": Decimal("1097.60"),
+            "currency": "PEN",
+            "availability": "out_of_stock",
+            "source_hash": "cs-obs-rog-b650a-01",
+            "captured_at": datetime(2026, 9, 20, 0, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "deepcool-ak620-digital-se-argb-black",
+            "store_domain": "computershopperu.com",
+            "price": Decimal("253.13"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "cs-obs-ak620-dig-01",
+            "captured_at": datetime(2026, 9, 20, 0, 5, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "kingston-datatraveler-exodia-m-64gb",
+            "store_domain": "necs.pe",
+            "price": Decimal("38.00"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "necs-obs-exodia-m64-01",
+            "captured_at": datetime(2026, 9, 20, 0, 10, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "kingston-datatraveler-exodia-m-64gb",
+            "store_domain": "computershopperu.com",
+            "price": Decimal("30.84"),
+            "currency": "PEN",
+            "availability": "out_of_stock",
+            "source_hash": "cs-obs-exodia-m64-01",
+            "captured_at": datetime(2026, 9, 20, 0, 15, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "kingston-fury-beast-rgb-ddr5-32gb-5200mhz",
+            "store_domain": "computershopperu.com",
+            "price": Decimal("1711.57"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "cs-obs-fury-32gb-01",
+            "captured_at": datetime(2026, 9, 20, 0, 20, 0, tzinfo=timezone.utc),
         },
     ]
     for po_data in price_observations_data:

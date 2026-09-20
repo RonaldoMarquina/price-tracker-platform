@@ -12,6 +12,7 @@ from app.adapters.base import (
     FatalScrapingError,
     StoreDisabledError,
 )
+from app.adapters.computershop_adapter import ComputerShopAdapter
 from app.adapters.memorykings_adapter import MemoryKingsAdapter
 from app.adapters.necs_adapter import NecsAdapter
 from app.adapters.registry import AdapterRegistry
@@ -29,6 +30,10 @@ def test_registry_dispatches_known_domains():
     assert isinstance(registry.get_adapter("https://www.necs.pe/"), NecsAdapter)
     assert isinstance(registry.get_adapter("memorykings.pe"), MemoryKingsAdapter)
     assert isinstance(registry.get_adapter("https://www.memorykings.pe/"), MemoryKingsAdapter)
+    assert isinstance(registry.get_adapter("computershopperu.com"), ComputerShopAdapter)
+    assert isinstance(
+        registry.get_adapter("https://www.computershopperu.com/"), ComputerShopAdapter
+    )
     assert isinstance(registry.get_adapter("sercoplus.com"), SercoplusAdapter)
     assert isinstance(registry.get_adapter("https://www.sercoplus.com/"), SercoplusAdapter)
 

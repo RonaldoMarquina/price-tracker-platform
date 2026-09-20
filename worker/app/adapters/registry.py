@@ -7,6 +7,7 @@ from app.adapters.base import (
     FatalScrapingError,
     StoreDisabledError,
 )
+from app.adapters.computershop_adapter import ComputerShopAdapter
 from app.adapters.fake_store_adapter import FakeStoreAdapter
 from app.adapters.memorykings_adapter import MemoryKingsAdapter
 from app.adapters.necs_adapter import NecsAdapter
@@ -39,6 +40,7 @@ class AdapterRegistry:
             # Default initialization with real adapters
             necs = NecsAdapter()
             memorykings = MemoryKingsAdapter()
+            computershop = ComputerShopAdapter()
             sercoplus = SercoplusAdapter()
             fake = FakeStoreAdapter()
 
@@ -46,6 +48,8 @@ class AdapterRegistry:
             self.register("www.necs.pe", necs)
             self.register("memorykings.pe", memorykings)
             self.register("www.memorykings.pe", memorykings)
+            self.register("computershopperu.com", computershop)
+            self.register("www.computershopperu.com", computershop)
             self.register("sercoplus.com", sercoplus)
             self.register("www.sercoplus.com", sercoplus)
             self.register("fake", fake)

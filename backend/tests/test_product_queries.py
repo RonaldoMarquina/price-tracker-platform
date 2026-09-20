@@ -140,3 +140,60 @@ def test_canonical_mpn_retrieval_and_integrity(db_session: Session):
     detail = service.get_product_detail(db_session, prod.id)
     assert detail.mpn == "VY279HGR"
     assert detail.name == "Monitor ASUS VY279HGR"
+
+
+def test_get_best_price_excludes_unknown_availability(db_session: Session):
+    """Observations with availability='unknown' must never compete as best available price."""
+    repo = ProductRepository()
+
+    cat = Category(name=f"Cat-{uuid.uuid4().hex[:6]}", slug=f"cat-{uuid.uuid4().hex[:6]}")
+    prod = Product(
+        name="Case ASUS ProArt",
+        slug=f"asus-proart-{uuid.uuid4().hex[:6]}",
+        category=cat,
+        is_active=True,
+    )
+    store_unknown = Store(
+        name=f"CS-{uuid.uuid4().hex[:4]}", domain=f"cs-{uuid.uuid4().hex[:4]}.com"
+    )
+    store_instock = Store(
+        name=f"NECS-{uuid.uuid4().hex[:4]}", domain=f"necs-{uuid.uuid4().hex[:4]}.pe"
+    )
+    db_session.add_all([cat, prod, store_unknown, store_instock])
+    db_session.commit()
+
+    sp_unknown = StoreProduct(
+        product_id=prod.id, store_id=store_unknown.id, product_url="https://cs.com/p"
+    )
+    sp_instock = StoreProduct(
+        product_id=prod.id, store_id=store_instock.id, product_url="https://necs.pe/p"
+    )
+    db_session.add_all([sp_unknown, sp_instock])
+    db_session.commit()
+
+    # Store unknown has cheaper price (200.00 PEN), but status is unknown (consultar disponibilidad)
+    obs_unknown = PriceObservation(
+        store_product_id=sp_unknown.id,
+        price=Decimal("200.00"),
+        currency="PEN",
+        availability="unknown",
+        captured_at=datetime.now(timezone.utc),
+    )
+    # Store instock has higher price (250.00 PEN), but status is in_stock
+    obs_instock = PriceObservation(
+        store_product_id=sp_instock.id,
+        price=Decimal("250.00"),
+        currency="PEN",
+        availability="in_stock",
+        captured_at=datetime.now(timezone.utc),
+    )
+    db_session.add_all([obs_unknown, obs_instock])
+    db_session.commit()
+
+    best = repo.get_best_price_for_product(db_session, prod.id)
+    assert best is not None
+    best_price, best_currency, store_name = best
+
+    # Unknown availability at 200.00 must NOT be selected!
+    assert best_price == Decimal("250.00")
+    assert store_name == store_instock.name

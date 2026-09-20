@@ -31,6 +31,8 @@
 - Una tienda puede ofrecer varios productos.
 - Cada observación debe tener precio positivo, moneda, URL y fecha de captura.
 - Guardar dinero con tipo decimal; nunca usar `float`.
+- Cuando una tienda diferencie el precio según la forma de pago (por ejemplo, efectivo/transferencia frente a recargo por tarjeta), se extrae únicamente el precio base (`base_price`, condición `cash_or_bank_transfer`). El recargo de tarjeta no se almacena como segunda observación. El frontend deberá mostrar "Precio en efectivo o transferencia" cuando la tienda publique esa condición.
+- Los productos agotados (`out_of_stock`) o con disponibilidad indeterminada (`unknown`) se conservan para historial y auditoría, pero no compiten como mejor precio, se muestran como no disponibles y no cuentan como comparación activa.
 - Los trabajos pueden entregarse más de una vez, por lo que el worker debe ser idempotente.
 - Un error de una tienda no debe impedir procesar otras tiendas.
 - El sistema no debe intentar evadir autenticación, CAPTCHA ni restricciones explícitas de los sitios externos.

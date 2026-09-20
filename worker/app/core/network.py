@@ -160,9 +160,7 @@ class SafeHttpClient:
                             f"Store blocked by anti-bot challenge (HTTP 403 Cloudflare): "
                             f"{current_url}"
                         )
-                    raise FatalScrapingError(
-                        f"Access forbidden (HTTP 403): {current_url}"
-                    )
+                    raise FatalScrapingError(f"Access forbidden (HTTP 403): {current_url}")
 
                 if response.status_code == 429:
                     raise TransientScrapingError(f"Rate limit exceeded (HTTP 429): {current_url}")
