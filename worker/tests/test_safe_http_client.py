@@ -120,6 +120,27 @@ def test_safe_http_client_allows_computershop_domain_and_redirect():
         assert resp.text == "<html>Computer Shop</html>"
 
 
+def test_safe_http_client_allows_cyc_domain_and_redirect():
+    """Client permits cyccomputer.pe and follows redirect to www alias."""
+    client = SafeHttpClient(
+        allowed_hosts={"cyccomputer.pe", "www.cyccomputer.pe"},
+        dns_resolver=mock_public_dns,
+    )
+
+    redirect_resp = MagicMock(spec=httpx.Response)
+    redirect_resp.status_code = 301
+    redirect_resp.headers = {"Location": "https://www.cyccomputer.pe/producto/123.html"}
+
+    final_resp = MagicMock(spec=httpx.Response)
+    final_resp.status_code = 200
+    final_resp.text = "<html>CyC Computer</html>"
+
+    with patch.object(httpx.Client, "get", side_effect=[redirect_resp, final_resp]):
+        resp = client.get("https://cyccomputer.pe/producto/123.html")
+        assert resp.status_code == 200
+        assert resp.text == "<html>CyC Computer</html>"
+
+
 def test_safe_http_client_exceeds_max_redirects():
     """Client must abort when redirects exceed limit."""
     client = SafeHttpClient(

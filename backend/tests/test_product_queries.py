@@ -197,3 +197,75 @@ def test_get_best_price_excludes_unknown_availability(db_session: Session):
     # Unknown availability at 200.00 must NOT be selected!
     assert best_price == Decimal("250.00")
     assert store_name == store_instock.name
+
+
+def test_get_best_price_excludes_inactive_store_even_if_in_stock_and_cheaper(
+    db_session: Session,
+):
+    """When a deactivated store has a lower in-stock price, best price selects the active store."""
+    repo = ProductRepository()
+
+    cat = Category(name=f"Cat-{uuid.uuid4().hex[:6]}", slug=f"cat-{uuid.uuid4().hex[:6]}")
+    prod = Product(
+        name="Placa MSI B760",
+        slug=f"msi-b760-{uuid.uuid4().hex[:6]}",
+        category=cat,
+        is_active=True,
+    )
+    # Deactivated store (e.g. Sercoplus or blocked store) with lower price and in_stock
+    store_inactive = Store(
+        name=f"InactiveStore-{uuid.uuid4().hex[:4]}",
+        domain=f"inactive-{uuid.uuid4().hex[:4]}.com",
+        is_active=False,
+    )
+    # Active store with higher price and in_stock
+    store_active = Store(
+        name=f"ActiveStore-{uuid.uuid4().hex[:4]}",
+        domain=f"active-{uuid.uuid4().hex[:4]}.pe",
+        is_active=True,
+    )
+    db_session.add_all([cat, prod, store_inactive, store_active])
+    db_session.commit()
+
+    sp_inactive = StoreProduct(
+        product_id=prod.id,
+        store_id=store_inactive.id,
+        product_url="https://inactive.com/p",
+        is_active=True,
+    )
+    sp_active = StoreProduct(
+        product_id=prod.id,
+        store_id=store_active.id,
+        product_url="https://active.pe/p",
+        is_active=True,
+    )
+    db_session.add_all([sp_inactive, sp_active])
+    db_session.commit()
+
+    # Inactive store has lower price S/ 150.00 and is in_stock
+    obs_inactive = PriceObservation(
+        store_product_id=sp_inactive.id,
+        price=Decimal("150.00"),
+        currency="PEN",
+        availability="in_stock",
+        captured_at=datetime.now(timezone.utc),
+    )
+    # Active store has higher price S/ 200.00 and is in_stock
+    obs_active = PriceObservation(
+        store_product_id=sp_active.id,
+        price=Decimal("200.00"),
+        currency="PEN",
+        availability="in_stock",
+        captured_at=datetime.now(timezone.utc),
+    )
+    db_session.add_all([obs_inactive, obs_active])
+    db_session.commit()
+
+    best = repo.get_best_price_for_product(db_session, prod.id)
+    assert best is not None
+    best_price, best_currency, store_name = best
+
+    # Inactive store offer at 150.00 must NOT be selected!
+    assert best_price == Decimal("200.00")
+    assert best_currency == "PEN"
+    assert store_name == store_active.name

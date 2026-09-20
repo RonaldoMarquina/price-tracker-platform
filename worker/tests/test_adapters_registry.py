@@ -13,6 +13,7 @@ from app.adapters.base import (
     StoreDisabledError,
 )
 from app.adapters.computershop_adapter import ComputerShopAdapter
+from app.adapters.cyc_adapter import CycComputerAdapter
 from app.adapters.memorykings_adapter import MemoryKingsAdapter
 from app.adapters.necs_adapter import NecsAdapter
 from app.adapters.registry import AdapterRegistry
@@ -34,6 +35,8 @@ def test_registry_dispatches_known_domains():
     assert isinstance(
         registry.get_adapter("https://www.computershopperu.com/"), ComputerShopAdapter
     )
+    assert isinstance(registry.get_adapter("cyccomputer.pe"), CycComputerAdapter)
+    assert isinstance(registry.get_adapter("https://www.cyccomputer.pe/"), CycComputerAdapter)
     assert isinstance(registry.get_adapter("sercoplus.com"), SercoplusAdapter)
     assert isinstance(registry.get_adapter("https://www.sercoplus.com/"), SercoplusAdapter)
 

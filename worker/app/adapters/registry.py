@@ -8,6 +8,7 @@ from app.adapters.base import (
     StoreDisabledError,
 )
 from app.adapters.computershop_adapter import ComputerShopAdapter
+from app.adapters.cyc_adapter import CycComputerAdapter
 from app.adapters.fake_store_adapter import FakeStoreAdapter
 from app.adapters.memorykings_adapter import MemoryKingsAdapter
 from app.adapters.necs_adapter import NecsAdapter
@@ -41,6 +42,7 @@ class AdapterRegistry:
             necs = NecsAdapter()
             memorykings = MemoryKingsAdapter()
             computershop = ComputerShopAdapter()
+            cyc = CycComputerAdapter()
             sercoplus = SercoplusAdapter()
             fake = FakeStoreAdapter()
 
@@ -50,6 +52,8 @@ class AdapterRegistry:
             self.register("www.memorykings.pe", memorykings)
             self.register("computershopperu.com", computershop)
             self.register("www.computershopperu.com", computershop)
+            self.register("cyccomputer.pe", cyc)
+            self.register("www.cyccomputer.pe", cyc)
             self.register("sercoplus.com", sercoplus)
             self.register("www.sercoplus.com", sercoplus)
             self.register("fake", fake)

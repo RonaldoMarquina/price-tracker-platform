@@ -52,6 +52,7 @@ def seed_dev_data(db: Session) -> dict[str, int]:
         {"name": "Memory Kings", "domain": "memorykings.pe", "is_active": True},
         {"name": "NECS Ayacucho", "domain": "necs.pe", "is_active": True},
         {"name": "Computer Shop Perú", "domain": "computershopperu.com", "is_active": True},
+        {"name": "CyC Computer", "domain": "cyccomputer.pe", "is_active": True},
         # Sercoplus is kept offline-only / deactivated due to Cloudflare bot challenge
         {"name": "Sercoplus", "domain": "sercoplus.com", "is_active": False},
     ]
@@ -411,6 +412,24 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "product_url": "https://computershopperu.com/producto/memoria-ram-ddr5-pc/24247-memoria-32gb-ddr5-kingston-fury-beast-rgb-black-bus-5200mhz-pnkf552c40bba-32.html",
             "external_sku": "271129008",
         },
+        {
+            "product_slug": "deepcool-ak620-digital-se-argb-black",
+            "store_domain": "cyccomputer.pe",
+            "product_url": "https://cyccomputer.pe/producto/refrigeracion-aire/17390265-deepcool-ak620-digital-se-tira-led-argb-black-refrigeracion-aire-amdintel-pnr-ak620-bkadmn-gjd.html",
+            "external_sku": "09022DCC001",
+        },
+        {
+            "product_slug": "msi-pro-h610m-a-ddr4",
+            "store_domain": "cyccomputer.pe",
+            "product_url": "https://cyccomputer.pe/producto/socket-lga-1700-14va/18398299-placa-msi-pro-h610m-a-ddr4-lga-1700-pn911-7e31-002-.html",
+            "external_sku": "22054MS8082",
+        },
+        {
+            "product_slug": "kingston-datatraveler-exodia-m-64gb",
+            "store_domain": "cyccomputer.pe",
+            "product_url": "https://cyccomputer.pe/producto/memorias-usb/26549-memoria-usb-64gb-kingston-data-traveler-exodia-m-blue-black-v-32-pndtxm64gb.html",
+            "external_sku": "20110KG0959",
+        },
     ]
     store_products_map: dict[tuple[str, str], StoreProduct] = {}
     for sp_data in store_products_data:
@@ -674,6 +693,36 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "source_hash": "cs-obs-fury-32gb-01",
             "captured_at": datetime(2026, 9, 20, 0, 20, 0, tzinfo=timezone.utc),
         },
+        {
+            "product_slug": "deepcool-ak620-digital-se-argb-black",
+            "store_domain": "cyccomputer.pe",
+            "price": Decimal("241.50"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "cyc-obs-ak620-dig-01",
+            "captured_at": datetime(2026, 9, 20, 1, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "msi-pro-h610m-a-ddr4",
+            "store_domain": "cyccomputer.pe",
+            "price": Decimal("269.10"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "cyc-obs-h610m-01",
+            "captured_at": datetime(2026, 9, 20, 1, 5, 0, tzinfo=timezone.utc),
+        },
+        # Nota: Dato no confiable / provisional publicado por PrestaShop ($ 299.00 / S/ 1,031.55)
+        # bajo 'Consultar disponibilidad'. Se preserva el valor PEN para auditoría;
+        # queda estrictamente excluido del cálculo de mejor precio/oferta.
+        {
+            "product_slug": "kingston-datatraveler-exodia-m-64gb",
+            "store_domain": "cyccomputer.pe",
+            "price": Decimal("1031.55"),
+            "currency": "PEN",
+            "availability": "unknown",
+            "source_hash": "cyc-obs-exodia-m64-01",
+            "captured_at": datetime(2026, 9, 20, 1, 10, 0, tzinfo=timezone.utc),
+        },
     ]
     for po_data in price_observations_data:
         sp = store_products_map[(po_data["product_slug"], po_data["store_domain"])]
@@ -694,6 +743,10 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             )
             db.add(po)
             counts["price_observations"] += 1
+        else:
+            existing.price = po_data["price"]
+            existing.currency = po_data["currency"]
+            existing.availability = po_data["availability"]
 
     db.commit()
     logger.info("Seed completed. Created: %s", counts)

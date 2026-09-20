@@ -84,7 +84,7 @@ class ProductRepository:
         return products, total
 
     def get_latest_price_for_product(
-        self, db: Session, product_id: uuid.UUID
+        self, db: Session, product_id: uuid.UUID, currency: str = "PEN"
     ) -> tuple[Decimal, str, str] | None:
         """Find the most recent valid in-stock price observation for a product across all stores."""
         stmt = (
@@ -101,6 +101,7 @@ class ProductRepository:
                 Store.is_active.is_(True),
                 PriceObservation.price.is_not(None),
                 PriceObservation.price > 0,
+                PriceObservation.currency == currency,
                 PriceObservation.availability == "in_stock",
             )
             .order_by(PriceObservation.captured_at.desc())
@@ -112,12 +113,13 @@ class ProductRepository:
         return None
 
     def get_best_price_for_product(
-        self, db: Session, product_id: uuid.UUID
+        self, db: Session, product_id: uuid.UUID, currency: str = "PEN"
     ) -> tuple[Decimal, str, str] | None:
         """Find the lowest active in-stock price observation for a product across all stores.
 
         Excludes observations with price=None, price<=0, availability='out_of_stock',
-        or availability='unknown'. Only explicit in_stock products can compete as best offer.
+        or availability='unknown'. Only explicit in_stock products from active stores can
+        compete as best offer in the specified comparable currency (default: 'PEN').
         """
         subq = (
             select(
@@ -148,8 +150,10 @@ class ProductRepository:
             .join(Store, StoreProduct.store_id == Store.id)
             .where(
                 Store.is_active.is_(True),
+                StoreProduct.is_active.is_(True),
                 PriceObservation.price.is_not(None),
                 PriceObservation.price > 0,
+                PriceObservation.currency == currency,
                 PriceObservation.availability == "in_stock",
             )
             .order_by(PriceObservation.price.asc())
