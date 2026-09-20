@@ -43,3 +43,38 @@ class UnauthorizedError(AppException):
 
     def __init__(self, message: str = "Credenciales de autorización inválidas o ausentes.") -> None:
         super().__init__(code="UNAUTHORIZED", message=message, status_code=401)
+
+
+class IncompatibleDateParametersError(AppException):
+    """Raised when both period and custom date range are supplied."""
+
+    def __init__(
+        self,
+        message: str = (
+            "No se puede especificar 'period' y rango de fechas personalizado "
+            "('from_date' / 'to_date') simultáneamente."
+        ),
+    ) -> None:
+        super().__init__(code="INCOMPATIBLE_DATE_PARAMETERS", message=message, status_code=422)
+
+
+class IncompleteDateRangeError(AppException):
+    """Raised when only one boundary of a custom date range is provided."""
+
+    def __init__(
+        self,
+        message: str = (
+            "Se requieren tanto 'from_date' como 'to_date' para especificar un rango personalizado."
+        ),
+    ) -> None:
+        super().__init__(code="INCOMPLETE_DATE_RANGE", message=message, status_code=422)
+
+
+class InvalidDateRangeError(AppException):
+    """Raised when from_date is strictly greater than to_date."""
+
+    def __init__(
+        self,
+        message: str = "El parámetro 'from_date' no puede ser posterior a 'to_date'.",
+    ) -> None:
+        super().__init__(code="INVALID_DATE_RANGE", message=message, status_code=422)
