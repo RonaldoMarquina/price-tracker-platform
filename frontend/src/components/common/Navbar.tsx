@@ -1,5 +1,5 @@
 import React from "react";
-import { Cpu, Layers } from "lucide-react";
+import { BarChart3, Cpu, Layers } from "lucide-react";
 
 interface NavbarProps {
   currentPath: string;
@@ -92,6 +92,25 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate }) => {
           >
             <Layers size={16} />
             Catálogo
+          </a>
+          <a
+            href="/analytics"
+            onClick={(e) => handleNavClick(e, "/analytics")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              fontSize: "0.9375rem",
+              fontWeight: currentPath.startsWith("/analytics") ? 600 : 500,
+              color:
+                currentPath.startsWith("/analytics")
+                  ? "var(--color-primary)"
+                  : "var(--color-text-secondary)",
+              transition: "color 0.15s ease",
+            }}
+          >
+            <BarChart3 size={16} />
+            Analítica
           </a>
         </nav>
       </div>

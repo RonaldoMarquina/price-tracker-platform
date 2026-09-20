@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Footer } from "./components/common/Footer";
 import { Navbar } from "./components/common/Navbar";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { HomePage } from "./pages/HomePage";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
@@ -58,6 +59,11 @@ export const App: React.FC = () => {
     if (productDetailMatch) {
       const productId = productDetailMatch[1];
       return <ProductDetailPage productId={productId} onNavigate={navigate} />;
+    }
+
+    // Analytics route: /analytics
+    if (pathname === "/analytics" || pathname.startsWith("/analytics/")) {
+      return <AnalyticsPage onNavigate={navigate} />;
     }
 
     // Catalog route: /products
