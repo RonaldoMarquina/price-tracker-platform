@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -97,6 +98,9 @@ class Store(Base):
     store_products: Mapped[list["StoreProduct"]] = relationship(
         "StoreProduct", back_populates="store", cascade="all, delete-orphan"
     )
+    scraping_jobs: Mapped[list["ScrapingJob"]] = relationship(
+        "ScrapingJob", back_populates="store"
+    )
 
     def __repr__(self) -> str:
         return f"<Store(name='{self.name}', domain='{self.domain}')>"
@@ -179,3 +183,60 @@ class PriceObservation(Base):
 
     def __repr__(self) -> str:
         return f"<PriceObservation(price={self.price} {self.currency})>"
+
+
+class ScrapingJob(Base):
+    """Registro de auditoría y ciclo de vida de un lote de extracción."""
+
+    __tablename__ = "scraping_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'processing', 'retrying', "
+            "'completed', 'skipped', 'failed', 'dead_letter')",
+            name="ck_scraping_jobs_status",
+        ),
+        CheckConstraint("batch_size > 0", name="ck_scraping_jobs_batch_size_positive"),
+        CheckConstraint(
+            "observations_created >= 0", name="ck_scraping_jobs_observations_non_negative"
+        ),
+        CheckConstraint("attempts >= 0", name="ck_scraping_jobs_attempts_non_negative"),
+        CheckConstraint(
+            "finished_at IS NULL OR started_at IS NULL OR finished_at >= started_at",
+            name="ck_scraping_jobs_temporal_coherence",
+        ),
+        Index("ix_scraping_jobs_created_at_desc", text("created_at DESC")),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    store_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("stores.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(30), default="queued", server_default=text("'queued'"), nullable=False, index=True
+    )
+    batch_size: Mapped[int] = mapped_column(
+        Integer, default=1, server_default=text("1"), nullable=False
+    )
+    observations_created: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    error_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    store: Mapped["Store"] = relationship("Store", back_populates="scraping_jobs")
+
+    def __repr__(self) -> str:
+        return f"<ScrapingJob(id='{self.id}', store_id='{self.store_id}', status='{self.status}')>"

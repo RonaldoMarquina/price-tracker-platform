@@ -319,13 +319,13 @@ def test_consumer_acknowledges_store_blocked_without_dlq() -> None:
     test_queue = f"test-blocked-{uuid.uuid4().hex[:8]}"
     dlq_name = f"{test_queue}-dlq"
 
-    store_id = uuid.uuid4()
+    store_id, product_id, _ = setup_test_store_product()
     job_id = uuid.uuid4()
     msg = ScrapingMessage(
         version=1,
         job_id=job_id,
         store_id=store_id,
-        product_ids=[uuid.uuid4()],
+        product_ids=[product_id],
         requested_at=datetime.now(timezone.utc),
         attempt=1,
     )

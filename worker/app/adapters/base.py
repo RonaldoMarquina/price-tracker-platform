@@ -46,6 +46,12 @@ class StoreBlockedError(ScrapingError):
     pass
 
 
+class TerminalInternalError(ScrapingError):
+    """Terminal internal error that marks the job as failed without generating a DLQ message."""
+
+    pass
+
+
 class ScrapedPriceResult(BaseModel):
     """Normalized price observation returned by store adapters."""
 

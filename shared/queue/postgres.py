@@ -23,8 +23,17 @@ class PostgresQueue(BaseQueue):
     def __init__(self, session_factory: Callable[[], Session]) -> None:
         self.session_factory = session_factory
 
-    def send_message(self, queue_name: str, message: BaseModel | dict[str, Any] | str) -> str:
-        """Enqueue a message into PostgreSQL."""
+    def send_message(
+        self,
+        queue_name: str,
+        message: BaseModel | dict[str, Any] | str,
+        session: Session | None = None,
+    ) -> str:
+        """Enqueue a message into PostgreSQL.
+
+        If session is provided, enqueues within that session without committing,
+        allowing atomic operations with other database models.
+        """
         if isinstance(message, BaseModel):
             payload = message.model_dump(mode="json")
         elif isinstance(message, dict):
@@ -33,18 +42,28 @@ class PostgresQueue(BaseQueue):
             payload = json.loads(message)
 
         now = datetime.now(timezone.utc)
-        with self.session_factory() as session:
-            msg = LocalQueueMessage(
-                id=uuid.uuid4(),
-                queue_name=queue_name,
-                payload=payload,
-                status="pending",
-                attempts=0,
-                visible_at=now,
-                created_at=now,
-            )
+        msg = LocalQueueMessage(
+            id=uuid.uuid4(),
+            queue_name=queue_name,
+            payload=payload,
+            status="pending",
+            attempts=0,
+            visible_at=now,
+            created_at=now,
+        )
+        if session is not None:
             session.add(msg)
-            session.commit()
+            session.flush()
+            logger.debug(
+                "Enqueued queue message %s to queue %s in shared transaction",
+                str(msg.id),
+                queue_name,
+            )
+            return str(msg.id)
+
+        with self.session_factory() as sess:
+            sess.add(msg)
+            sess.commit()
             logger.debug("Persisted queue message %s to queue %s", str(msg.id), queue_name)
             return str(msg.id)
 

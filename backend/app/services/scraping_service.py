@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ProductNotFoundError, StoreNotFoundError
 from app.core.queue import BaseQueue, get_queue_service
-from app.db.models import Product, Store
+from app.db.models import Product, ScrapingJob, Store
 from app.schemas.scraping import ScrapingJobCreate, ScrapingJobResponse
 
 logger = logging.getLogger("price-tracker.scraping")
@@ -68,9 +68,25 @@ class ScrapingService:
             attempt=1,
         )
 
-        # Enqueue message into persistent PostgreSQL queue
+        job = ScrapingJob(
+            id=job_id,
+            store_id=payload.store_id,
+            status="queued",
+            batch_size=len(payload.product_ids),
+            observations_created=0,
+            attempts=0,
+            created_at=now_utc,
+        )
+
+        # Enqueue message and persist job atomically in the same transaction
         queue_name = "scraping-jobs"
-        self.queue.send_message(queue_name, message)
+        try:
+            db.add(job)
+            self.queue.send_message(queue_name, message, session=db)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
         # Structured audit log
         logger.info(

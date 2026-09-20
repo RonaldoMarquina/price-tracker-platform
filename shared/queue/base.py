@@ -20,7 +20,12 @@ class BaseQueue(ABC):
     """Abstract interface for message queue operations."""
 
     @abstractmethod
-    def send_message(self, queue_name: str, message: BaseModel | dict[str, Any] | str) -> str:
+    def send_message(
+        self,
+        queue_name: str,
+        message: BaseModel | dict[str, Any] | str,
+        session: Any = None,
+    ) -> str:
         """Publish a message to the specified queue. Returns message ID."""
         pass
 

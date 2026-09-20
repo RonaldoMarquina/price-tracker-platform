@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import Category, Product, Store, StoreProduct
+from app.db.models import Category, Product, ScrapingJob, Store, StoreProduct
 from app.db.session import SessionLocal
 from app.main import app
 
@@ -148,8 +148,10 @@ def test_create_job_success_enqueues_and_returns_202() -> None:
 
     job_id = uuid.UUID(data["job_id"])
 
-    # Verify message persisted in PostgreSQL queue
+    # Verify message persisted in PostgreSQL queue and ScrapingJob persisted in database
     db: Session = SessionLocal()
+    matching: list[LocalQueueMessage] = []
+    job: ScrapingJob | None = None
     try:
         msg = db.scalars(
             select(LocalQueueMessage).where(LocalQueueMessage.queue_name == "scraping-jobs")
@@ -162,7 +164,19 @@ def test_create_job_success_enqueues_and_returns_202() -> None:
         assert persisted.payload["store_id"] == str(store.id)
         assert persisted.payload["product_ids"] == [str(product.id)]
         assert persisted.attempts == 0
+
+        job = db.execute(select(ScrapingJob).where(ScrapingJob.id == job_id)).scalar_one_or_none()
+        assert job is not None
+        assert job.status == "queued"
+        assert job.store_id == store.id
+        assert job.batch_size == 1
+        assert job.observations_created == 0
+        assert job.attempts == 0
+        assert job.started_at is None
+        assert job.finished_at is None
     finally:
+        if job:
+            db.delete(job)
         for m in matching:
             db.delete(m)
         db.commit()

@@ -143,16 +143,18 @@ def test_migration_004_safe_downgrade_and_upgrade():
     alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
     alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
 
-    # Downgrade 1 revision (004 -> 003)
-    command.downgrade(alembic_cfg, "-1")
-    inspector = inspect(engine)
-    cols_after_down = [col["name"] for col in inspector.get_columns("price_observations")]
-    assert "price_condition" not in cols_after_down
-    assert "price" in cols_after_down
-    assert "currency" in cols_after_down
+    # Downgrade 004 revision (004 -> 003)
+    try:
+        command.downgrade(alembic_cfg, "003_add_mpn_nullable_price")
+        inspector = inspect(engine)
+        cols_after_down = [col["name"] for col in inspector.get_columns("price_observations")]
+        assert "price_condition" not in cols_after_down
+        assert "price" in cols_after_down
+        assert "currency" in cols_after_down
+    finally:
+        # Upgrade back to head (restoring 004 and 005)
+        command.upgrade(alembic_cfg, "head")
 
-    # Upgrade back to head (003 -> 004)
-    command.upgrade(alembic_cfg, "head")
     inspector_up = inspect(engine)
     cols_after_up = {col["name"]: col for col in inspector_up.get_columns("price_observations")}
     assert "price_condition" in cols_after_up

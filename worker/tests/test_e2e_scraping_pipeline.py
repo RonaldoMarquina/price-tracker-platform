@@ -28,7 +28,14 @@ from sqlalchemy.orm import Session
 from app.adapters.fake_store_adapter import FakeStoreAdapter
 from app.consumers.scraping_consumer import ScrapingConsumer
 from app.core.config import worker_settings
-from app.db.models import Category, PriceObservation, Product, Store, StoreProduct
+from app.db.models import (
+    Category,
+    PriceObservation,
+    Product,
+    ScrapingJob,
+    Store,
+    StoreProduct,
+)
 from app.db.session import SessionLocal
 from app.repositories.observation_repository import ObservationRepository
 from app.services.scraping_service import ScrapingWorkerService
@@ -171,14 +178,18 @@ def isolated_e2e_entities() -> Generator[dict, None, None]:
             if p_to_delete:
                 clean_db.delete(p_to_delete)
                 clean_db.flush()
-            c_to_delete = clean_db.get(Category, category.id)
-            if c_to_delete:
-                clean_db.delete(c_to_delete)
+                c_to_delete = clean_db.get(Category, category.id)
+                if c_to_delete:
+                    clean_db.delete(c_to_delete)
+                    clean_db.flush()
+                clean_db.query(ScrapingJob).filter(
+                    ScrapingJob.store_id == store.id
+                ).delete(synchronize_session=False)
                 clean_db.flush()
-            s_to_delete = clean_db.get(Store, store.id)
-            if s_to_delete:
-                clean_db.delete(s_to_delete)
-                clean_db.flush()
+                s_to_delete = clean_db.get(Store, store.id)
+                if s_to_delete:
+                    clean_db.delete(s_to_delete)
+                    clean_db.flush()
 
             clean_db.commit()
 
