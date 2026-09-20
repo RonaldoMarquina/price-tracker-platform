@@ -6,7 +6,13 @@ import logging
 from shared.schemas.scraping import ScrapingMessage
 from sqlalchemy.orm import Session
 
-from app.adapters.base import BaseStoreAdapter
+from app.adapters.base import (
+    BaseStoreAdapter,
+    FatalScrapingError,
+    StoreDisabledError,
+)
+from app.adapters.registry import AdapterRegistry, default_registry
+from app.db.models import Store
 from app.repositories.observation_repository import ObservationRepository
 
 logger = logging.getLogger("price-tracker.worker.scraping")
@@ -17,14 +23,39 @@ class ScrapingWorkerService:
 
     def __init__(
         self,
-        adapter: BaseStoreAdapter,
+        adapter: BaseStoreAdapter | None = None,
         repository: ObservationRepository | None = None,
+        registry: AdapterRegistry | None = None,
     ) -> None:
         self.adapter = adapter
         self.repository = repository or ObservationRepository()
+        self.registry = registry
 
     def process_job(self, db: Session, message: ScrapingMessage) -> int:
         """Process all product extractions in a scraping job message."""
+        # 1. Validate Store existence and active state
+        store = db.get(Store, message.store_id)
+        if not store:
+            if not self.adapter:
+                raise FatalScrapingError(
+                    f"Store with id '{message.store_id}' not found in database"
+                )
+        elif not store.is_active:
+            raise StoreDisabledError(
+                f"Store '{store.name}' ({store.domain}) is deactivated; skipping job"
+            )
+
+        # 2. Resolve adapter
+        if self.adapter:
+            adapter = self.adapter
+        else:
+            if not store:
+                raise FatalScrapingError(
+                    f"Store with id '{message.store_id}' not found in database"
+                )
+            reg = self.registry or default_registry
+            adapter = reg.get_adapter(store.domain)
+
         inserted_count = 0
 
         for product_id in message.product_ids:
@@ -46,8 +77,8 @@ class ScrapingWorkerService:
             idempotency_key = f"{message.job_id}:{store_product.id}"
             source_hash = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()
 
-            # Execute fake store adapter (can throw TransientScrapingError or FatalScrapingError)
-            scraped = self.adapter.fetch_product_price(store_product.product_url)
+            # Execute store adapter (can throw TransientScrapingError or FatalScrapingError)
+            scraped = adapter.fetch_product_price(store_product.product_url)
 
             # Persist observation with ON CONFLICT (source_hash) DO NOTHING
             was_inserted = self.repository.insert_observation_idempotent(

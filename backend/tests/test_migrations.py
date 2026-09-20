@@ -41,18 +41,20 @@ def test_store_products_unique_constraint_exists():
 
 
 def test_price_positive_check_constraint_exists():
-    """Verify check constraint on price > 0 exists."""
+    """Verify check constraint on price and currency validity exists."""
     inspector = inspect(engine)
     check_constraints = inspector.get_check_constraints("price_observations")
     constraint_names = [cc["name"] for cc in check_constraints]
 
-    assert "ck_price_observations_price_positive" in constraint_names
+    assert "ck_price_observations_price_currency_valid" in constraint_names
 
 
 def test_seed_idempotency():
     """Verify seed function can be called multiple times without duplicate records or errors."""
     db: Session = SessionLocal()
     try:
+        # Initial seed ensures base data exists
+        seed_dev_data(db)
         # Running seed again should result in 0 new records inserted
         second_run_counts = seed_dev_data(db)
         assert second_run_counts["categories"] == 0

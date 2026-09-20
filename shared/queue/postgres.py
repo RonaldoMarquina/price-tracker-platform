@@ -93,8 +93,13 @@ class PostgresQueue(BaseQueue):
             session.commit()
             return results
 
-    def delete_message(self, queue_name: str, receipt_handle: str) -> None:
-        """Mark message as completed."""
+    def delete_message(
+        self,
+        queue_name: str,
+        receipt_handle: str,
+        error_reason: str | None = None,
+    ) -> None:
+        """Mark message as completed, recording optional note or skip reason."""
         try:
             handle_uuid = uuid.UUID(receipt_handle)
         except ValueError:
@@ -108,6 +113,7 @@ class PostgresQueue(BaseQueue):
                     status="completed",
                     processed_at=func.now(),
                     receipt_handle=None,
+                    error_reason=error_reason,
                 )
             )
             session.execute(stmt)

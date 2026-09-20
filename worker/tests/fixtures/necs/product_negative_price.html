@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <title>Producto con Precio Negativo - NECS</title>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org/",
+        "@type": "Product",
+        "name": "Producto Negativo",
+        "sku": "NEG-01",
+        "offers": {
+            "@type": "Offer",
+            "priceCurrency": "PEN",
+            "price": "-25.00",
+            "availability": "https://schema.org/InStock"
+        }
+    }
+    </script>
+</head>
+<body>
+    <h1>Producto Negativo</h1>
+    <span itemprop="price">S/ -25.00</span>
+    <div id="product-availability">En stock</div>
+</body>
+</html>

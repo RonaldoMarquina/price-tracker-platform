@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <title>Producto con JSON-LD Corrupto - NECS</title>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org/",
+        "@type": "Product",
+        "name": "Teclado Mecanico"
+        "price": 150.00 -- missing comma and quotes
+    }
+    </script>
+</head>
+<body>
+    <h1 class="product-title">Teclado Mecánico RGB</h1>
+    <div class="product-prices">
+        <div class="current-price">
+            <span itemprop="price">S/ 150.00</span>
+        </div>
+    </div>
+    <div id="product-availability">
+        <span>En stock</span>
+    </div>
+    <div class="product-reference">
+        <span itemprop="sku">KB-100</span>
+    </div>
+</body>
+</html>

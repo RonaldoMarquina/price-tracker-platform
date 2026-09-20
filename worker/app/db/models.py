@@ -42,6 +42,7 @@ class Product(Base):
     slug: Mapped[str] = mapped_column(String(220), unique=True, nullable=False)
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    mpn: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
@@ -74,14 +75,18 @@ class PriceObservation(Base):
 
     __tablename__ = "price_observations"
     __table_args__ = (
-        CheckConstraint("price > 0", name="ck_price_observations_price_positive"),
+        CheckConstraint(
+            "(price IS NULL AND currency IS NULL) OR "
+            "(price IS NOT NULL AND price > 0 AND currency IS NOT NULL)",
+            name="ck_price_observations_price_currency_valid",
+        ),
         UniqueConstraint("source_hash", name="uq_price_observations_source_hash"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     store_product_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
-    price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     availability: Mapped[str | None] = mapped_column(String(40), nullable=True)
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

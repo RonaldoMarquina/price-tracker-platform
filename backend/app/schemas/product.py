@@ -22,6 +22,7 @@ class ProductListItemOut(BaseModel):
     id: uuid.UUID
     name: str
     brand: str | None = None
+    mpn: str | None = None
     category: str = Field(..., description="Nombre de la categoría")
     image_url: str | None = None
     latest_price: LatestPriceOut | None = None
@@ -48,8 +49,8 @@ class CategoryOut(BaseModel):
 class StoreProductPriceOut(BaseModel):
     """Price observation detail for a specific store product."""
 
-    amount: str
-    currency: str
+    amount: str | None = None
+    currency: str | None = None
     availability: str | None = None
     captured_at: datetime
 
@@ -72,6 +73,7 @@ class ProductDetailOut(BaseModel):
     slug: str
     brand: str | None = None
     model: str | None = None
+    mpn: str | None = None
     category: CategoryOut
     image_url: str | None = None
     is_active: bool

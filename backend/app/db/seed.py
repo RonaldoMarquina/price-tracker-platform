@@ -23,7 +23,7 @@ def seed_dev_data(db: Session) -> dict[str, int]:
         "price_observations": 0,
     }
 
-    # 1. Categories - Exactly the 6 core PC hardware categories requested
+    # 1. Categories - Core PC hardware categories
     categories_data = [
         {"name": "Procesadores", "slug": "procesadores"},
         {"name": "Tarjetas de Video", "slug": "tarjetas-de-video"},
@@ -31,6 +31,8 @@ def seed_dev_data(db: Session) -> dict[str, int]:
         {"name": "Placas Madre", "slug": "placas-madre"},
         {"name": "Fuentes de Poder", "slug": "fuentes-de-poder"},
         {"name": "Refrigeración", "slug": "refrigeracion"},
+        {"name": "Monitores", "slug": "monitores"},
+        {"name": "Almacenamiento", "slug": "almacenamiento"},
     ]
     categories_map: dict[str, Category] = {}
     for cat_data in categories_data:
@@ -46,20 +48,34 @@ def seed_dev_data(db: Session) -> dict[str, int]:
 
     # 2. Stores
     stores_data = [
-        {"name": "Impacto", "domain": "impacto.com.pe"},
-        {"name": "Memory Kings", "domain": "memorykings.com.pe"},
+        {"name": "Impacto", "domain": "impacto.com.pe", "is_active": False},
+        {"name": "Memory Kings", "domain": "memorykings.pe", "is_active": True},
+        {"name": "NECS Ayacucho", "domain": "necs.pe", "is_active": True},
+        # Sercoplus is kept offline-only / deactivated due to Cloudflare bot challenge
+        {"name": "Sercoplus", "domain": "sercoplus.com", "is_active": False},
     ]
     stores_map: dict[str, Store] = {}
     for store_data in stores_data:
-        existing = db.scalars(select(Store).where(Store.domain == store_data["domain"])).first()
+        existing = db.scalars(
+            select(Store).where(
+                (Store.domain == store_data["domain"])
+                | (Store.name == store_data["name"])
+            )
+        ).first()
+        is_active = store_data.get("is_active", True)
         if not existing:
-            store = Store(name=store_data["name"], domain=store_data["domain"], is_active=True)
+            store = Store(name=store_data["name"], domain=store_data["domain"], is_active=is_active)
             db.add(store)
             db.flush()
             stores_map[store.domain] = store
             counts["stores"] += 1
         else:
+            existing.domain = store_data["domain"]
+            existing.is_active = is_active
             stores_map[existing.domain] = existing
+            if existing.name == "Memory Kings":
+                stores_map["memorykings.com.pe"] = existing
+
 
     # 3. Products across all 6 core categories
     products_data = [
@@ -147,7 +163,44 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "category_slug": "refrigeracion",
             "brand": "DeepCool",
             "model": "R-AK620-BKNNMT-G",
+            "mpn": "R-AK620-BKNNMT-G",
             "image_url": "https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400",
+        },
+        {
+            "name": 'Monitor ASUS VY279HGR 27" IPS FHD 120Hz',
+            "slug": "asus-vy279hgr-27-ips",
+            "category_slug": "monitores",
+            "brand": "ASUS",
+            "model": "VY279HGR",
+            "mpn": "VY279HGR",
+            "image_url": "https://cdn.memorykings.pe/files/2025/03/28/352612-MK039005-A.jpg",
+        },
+        {
+            "name": "Memoria USB Kingston DataTraveler Exodia S 128GB",
+            "slug": "kingston-datatraveler-exodia-s-128gb",
+            "category_slug": "almacenamiento",
+            "brand": "Kingston",
+            "model": "DataTraveler Exodia S",
+            "mpn": "DTXS/128GB",
+            "image_url": "https://cdn.memorykings.pe/files/2025/03/28/353418-MK039010.jpg",
+        },
+        {
+            "name": "Multigrabador Externo DVD LG GP65NB60 Slim",
+            "slug": "lg-gp65nb60-slim-dvd",
+            "category_slug": "almacenamiento",
+            "brand": "LG",
+            "model": "GP65NB60",
+            "mpn": "GP65NB60",
+            "image_url": "https://cdn.memorykings.pe/files/2024/09/20/093353-A.jpg",
+        },
+        {
+            "name": "Mainboard MSI PRO H610M-A DDR4",
+            "slug": "msi-pro-h610m-a-ddr4",
+            "category_slug": "placas-madre",
+            "brand": "MSI",
+            "model": "PRO H610M-A DDR4",
+            "mpn": "PRO H610M-A DDR4",
+            "image_url": "https://necs.pe/15305-large_default/mainboard-msi-pro-h610m-a-ddr4-lga-1700.jpg",
         },
     ]
     products_map: dict[str, Product] = {}
@@ -160,6 +213,7 @@ def seed_dev_data(db: Session) -> dict[str, int]:
                 slug=prod_data["slug"],
                 brand=prod_data["brand"],
                 model=prod_data["model"],
+                mpn=prod_data.get("mpn"),
                 image_url=prod_data["image_url"],
                 is_active=True,
             )
@@ -168,6 +222,8 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             products_map[prod.slug] = prod
             counts["products"] += 1
         else:
+            if not existing.mpn and prod_data.get("mpn"):
+                existing.mpn = prod_data["mpn"]
             products_map[existing.slug] = existing
 
     # 4. Store Products
@@ -249,6 +305,54 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "store_domain": "impacto.com.pe",
             "product_url": "https://www.impacto.com.pe/producto/deepcool-ak620",
             "external_sku": "SKU-DEEPCOOL-AK620",
+        },
+        {
+            "product_slug": "msi-pro-h610m-a-ddr4",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/15305",
+            "external_sku": "1588",
+        },
+        {
+            "product_slug": "msi-pro-h610m-a-ddr4",
+            "store_domain": "sercoplus.com",
+            "product_url": "https://sercoplus.com/socket-1700/643503-mainboard-msi-pro-h610m-a-ddr4-lga-1700.html",
+            "external_sku": "060874167",
+        },
+        {
+            "product_slug": "asus-vy279hgr-27-ips",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/10744",
+            "external_sku": "1414",
+        },
+        {
+            "product_slug": "asus-vy279hgr-27-ips",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/352612/monitor-27-asus-vy279hgr-ips-fhd-120hz-1ms",
+            "external_sku": "352612",
+        },
+        {
+            "product_slug": "kingston-datatraveler-exodia-s-128gb",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/7351",
+            "external_sku": "1191",
+        },
+        {
+            "product_slug": "kingston-datatraveler-exodia-s-128gb",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/353418/memoria-usb-128gb-kingston-dt-exodia-s",
+            "external_sku": "353418",
+        },
+        {
+            "product_slug": "lg-gp65nb60-slim-dvd",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/142",
+            "external_sku": "0143",
+        },
+        {
+            "product_slug": "lg-gp65nb60-slim-dvd",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/93353/grabador-dvd-usb-super-multi-lg-gp65nb60-slim",
+            "external_sku": "93353",
         },
     ]
     store_products_map: dict[tuple[str, str], StoreProduct] = {}
@@ -395,6 +499,78 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "availability": "in_stock",
             "source_hash": "a1b2c3d4e5f60013",
             "captured_at": datetime(2026, 9, 18, 10, 45, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "msi-pro-h610m-a-ddr4",
+            "store_domain": "necs.pe",
+            "price": Decimal("290.00"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "a1b2c3d4e5f60030",
+            "captured_at": datetime(2026, 9, 19, 12, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "msi-pro-h610m-a-ddr4",
+            "store_domain": "sercoplus.com",
+            "price": Decimal("262.04"),
+            "currency": "PEN",
+            "availability": "out_of_stock",
+            "source_hash": "a1b2c3d4e5f60031",
+            "captured_at": datetime(2026, 9, 19, 12, 5, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "asus-vy279hgr-27-ips",
+            "store_domain": "necs.pe",
+            "price": Decimal("430.00"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "necs-obs-vy279hgr-01",
+            "captured_at": datetime(2026, 9, 19, 12, 10, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "asus-vy279hgr-27-ips",
+            "store_domain": "memorykings.pe",
+            "price": Decimal("392.00"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "mk-obs-vy279hgr-01",
+            "captured_at": datetime(2026, 9, 19, 12, 15, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "kingston-datatraveler-exodia-s-128gb",
+            "store_domain": "necs.pe",
+            "price": Decimal("45.00"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "necs-obs-exodia-01",
+            "captured_at": datetime(2026, 9, 19, 12, 20, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "kingston-datatraveler-exodia-s-128gb",
+            "store_domain": "memorykings.pe",
+            "price": Decimal("40.50"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "mk-obs-exodia-01",
+            "captured_at": datetime(2026, 9, 19, 12, 25, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "lg-gp65nb60-slim-dvd",
+            "store_domain": "necs.pe",
+            "price": Decimal("115.00"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "necs-obs-gp65-01",
+            "captured_at": datetime(2026, 9, 19, 12, 30, 0, tzinfo=timezone.utc),
+        },
+        {
+            "product_slug": "lg-gp65nb60-slim-dvd",
+            "store_domain": "memorykings.pe",
+            "price": Decimal("102.00"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "mk-obs-gp65-01",
+            "captured_at": datetime(2026, 9, 19, 12, 35, 0, tzinfo=timezone.utc),
         },
     ]
     for po_data in price_observations_data:

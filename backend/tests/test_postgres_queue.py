@@ -17,9 +17,9 @@ def cleanup_queue_test_data():
     """Clean up test queue messages after each test to keep DB clean."""
     yield
     with SessionLocal() as db:
-        db.query(LocalQueueMessage).filter(
-            LocalQueueMessage.queue_name.like("test-%")
-        ).delete(synchronize_session=False)
+        db.query(LocalQueueMessage).filter(LocalQueueMessage.queue_name.like("test-%")).delete(
+            synchronize_session=False
+        )
         db.commit()
 
 

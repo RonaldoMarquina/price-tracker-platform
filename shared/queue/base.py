@@ -32,8 +32,13 @@ class BaseQueue(ABC):
         pass
 
     @abstractmethod
-    def delete_message(self, queue_name: str, receipt_handle: str) -> None:
-        """Acknowledge and mark or delete a message after successful processing."""
+    def delete_message(
+        self,
+        queue_name: str,
+        receipt_handle: str,
+        error_reason: str | None = None,
+    ) -> None:
+        """Acknowledge and mark or delete a message after processing or traceable skip."""
         pass
 
     @abstractmethod

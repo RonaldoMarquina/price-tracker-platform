@@ -63,6 +63,7 @@ class ProductService:
                     id=prod.id,
                     name=prod.name,
                     brand=prod.brand,
+                    mpn=prod.mpn,
                     category=prod.category.name,
                     image_url=prod.image_url,
                     latest_price=latest_price,
@@ -90,8 +91,9 @@ class ProductService:
             latest_obs = self.repo.get_latest_price_for_store_product(db, sp.id)
             store_price_out: StoreProductPriceOut | None = None
             if latest_obs:
+                amount_str = f"{latest_obs.price:.2f}" if latest_obs.price is not None else None
                 store_price_out = StoreProductPriceOut(
-                    amount=f"{latest_obs.price:.2f}",
+                    amount=amount_str,
                     currency=latest_obs.currency,
                     availability=latest_obs.availability,
                     captured_at=latest_obs.captured_at,
@@ -119,6 +121,7 @@ class ProductService:
             slug=product.slug,
             brand=product.brand,
             model=product.model,
+            mpn=product.mpn,
             category=category_out,
             image_url=product.image_url,
             is_active=product.is_active,
@@ -151,13 +154,18 @@ class ProductService:
                 date_to=date_to,
             )
 
-            currency = observations[0].currency if observations else "PEN"
+            valid_observations = [obs for obs in observations if obs.price is not None]
+            currency = (
+                valid_observations[0].currency
+                if valid_observations and valid_observations[0].currency
+                else "PEN"
+            )
             points = [
                 PricePointOut(
                     captured_at=obs.captured_at,
                     price=f"{obs.price:.2f}",
                 )
-                for obs in observations
+                for obs in valid_observations
             ]
 
             series_list.append(

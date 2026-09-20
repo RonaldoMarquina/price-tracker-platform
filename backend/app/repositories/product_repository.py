@@ -86,7 +86,7 @@ class ProductRepository:
     def get_latest_price_for_product(
         self, db: Session, product_id: uuid.UUID
     ) -> tuple[Decimal, str, str] | None:
-        """Find the most recent price observation for a product across all stores."""
+        """Find the most recent valid in-stock price observation for a product across all stores."""
         stmt = (
             select(
                 PriceObservation.price,
@@ -99,12 +99,64 @@ class ProductRepository:
                 StoreProduct.product_id == product_id,
                 StoreProduct.is_active.is_(True),
                 Store.is_active.is_(True),
+                PriceObservation.price.is_not(None),
+                PriceObservation.price > 0,
+                PriceObservation.availability != "out_of_stock",
             )
             .order_by(PriceObservation.captured_at.desc())
             .limit(1)
         )
         row = db.execute(stmt).first()
-        if row:
+        if row and row[0] is not None and row[1] is not None:
+            return (row[0], row[1], row[2])
+        return None
+
+    def get_best_price_for_product(
+        self, db: Session, product_id: uuid.UUID
+    ) -> tuple[Decimal, str, str] | None:
+        """Find the lowest active in-stock price observation for a product across all stores.
+
+        Excludes observations with price=None, price<=0, or availability='out_of_stock'.
+        An out-of-stock product will never appear as the lowest/best price.
+        """
+        subq = (
+            select(
+                PriceObservation.store_product_id,
+                func.max(PriceObservation.captured_at).label("max_captured"),
+            )
+            .join(StoreProduct, PriceObservation.store_product_id == StoreProduct.id)
+            .where(
+                StoreProduct.product_id == product_id,
+                StoreProduct.is_active.is_(True),
+            )
+            .group_by(PriceObservation.store_product_id)
+            .subquery()
+        )
+
+        stmt = (
+            select(
+                PriceObservation.price,
+                PriceObservation.currency,
+                Store.name,
+            )
+            .join(
+                subq,
+                (PriceObservation.store_product_id == subq.c.store_product_id)
+                & (PriceObservation.captured_at == subq.c.max_captured),
+            )
+            .join(StoreProduct, PriceObservation.store_product_id == StoreProduct.id)
+            .join(Store, StoreProduct.store_id == Store.id)
+            .where(
+                Store.is_active.is_(True),
+                PriceObservation.price.is_not(None),
+                PriceObservation.price > 0,
+                PriceObservation.availability != "out_of_stock",
+            )
+            .order_by(PriceObservation.price.asc())
+            .limit(1)
+        )
+        row = db.execute(stmt).first()
+        if row and row[0] is not None and row[1] is not None:
             return (row[0], row[1], row[2])
         return None
 

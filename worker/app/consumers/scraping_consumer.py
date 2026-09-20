@@ -8,7 +8,12 @@ from shared.queue.base import BaseQueue
 from shared.schemas.scraping import ScrapingMessage
 from sqlalchemy.orm import Session
 
-from app.adapters.base import TransientScrapingError
+from app.adapters.base import (
+    FatalScrapingError,
+    StoreBlockedError,
+    StoreDisabledError,
+    TransientScrapingError,
+)
 from app.services.scraping_service import ScrapingWorkerService
 
 logger = logging.getLogger("price-tracker.worker.consumer")
@@ -86,6 +91,50 @@ class ScrapingConsumer:
                     str(scraping_msg.store_id),
                     attempts,
                     inserted_count,
+                )
+                return True
+            except StoreDisabledError as exc:
+                skip_reason = f"SKIPPED_STORE_DISABLED: {exc}"
+                self.queue.delete_message(
+                    self.queue_name, msg.receipt_handle, error_reason=skip_reason
+                )
+                logger.warning(
+                    "JOB_SKIPPED: job_id=%s store_id=%s attempt=%d reason=STORE_DISABLED error=%s",
+                    str(scraping_msg.job_id),
+                    str(scraping_msg.store_id),
+                    attempts,
+                    str(exc),
+                )
+                return True
+            except StoreBlockedError as exc:
+                skip_reason = f"SKIPPED_STORE_BLOCKED: {exc}"
+                self.queue.delete_message(
+                    self.queue_name, msg.receipt_handle, error_reason=skip_reason
+                )
+                logger.warning(
+                    "JOB_SKIPPED_BLOCKED: job_id=%s store_id=%s attempt=%d "
+                    "reason=STORE_BLOCKED error=%s",
+                    str(scraping_msg.job_id),
+                    str(scraping_msg.store_id),
+                    attempts,
+                    str(exc),
+                )
+                return True
+            except FatalScrapingError as exc:
+                self.queue.send_to_dlq(
+                    self.dlq_name,
+                    message_payload=msg.body,
+                    error_reason=f"FATAL_SCRAPING_ERROR: {exc}",
+                    attempts=attempts,
+                    receipt_handle=msg.receipt_handle,
+                )
+                logger.error(
+                    "JOB_SENT_TO_DLQ: job_id=%s store_id=%s attempt=%d "
+                    "reason=FATAL_SCRAPING_ERROR error=%s",
+                    str(scraping_msg.job_id),
+                    str(scraping_msg.store_id),
+                    attempts,
+                    str(exc),
                 )
                 return True
             except TransientScrapingError as exc:

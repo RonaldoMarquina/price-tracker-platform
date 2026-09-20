@@ -9,21 +9,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import Category, PriceObservation, Product, Store, StoreProduct
-from app.db.session import engine
-
-
-@pytest.fixture
-def db_session():
-    """Provide a database session wrapped in an outer transaction that rolls back everything."""
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = Session(bind=connection, join_transaction_mode="create_savepoint")
-    try:
-        yield session
-    finally:
-        session.close()
-        transaction.rollback()
-        connection.close()
 
 
 def test_create_category(db_session: Session):
@@ -131,6 +116,54 @@ def test_price_observation_must_be_positive(db_session: Session):
     with pytest.raises(IntegrityError):
         db_session.commit()
     db_session.rollback()
+
+    # Zero price should fail
+    zero_obs = PriceObservation(
+        store_product_id=sp.id,
+        price=Decimal("0.00"),
+        currency="PEN",
+    )
+    db_session.add(zero_obs)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # Null price with non-null currency should fail
+    null_price_with_curr = PriceObservation(
+        store_product_id=sp.id,
+        price=None,
+        currency="PEN",
+        availability="out_of_stock",
+    )
+    db_session.add(null_price_with_curr)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # Non-null price with null currency should fail
+    price_with_null_curr = PriceObservation(
+        store_product_id=sp.id,
+        price=Decimal("50.00"),
+        currency=None,
+        availability="in_stock",
+    )
+    db_session.add(price_with_null_curr)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # Both price and currency None should succeed for out_of_stock
+    oos_obs = PriceObservation(
+        store_product_id=sp.id,
+        price=None,
+        currency=None,
+        availability="out_of_stock",
+    )
+    db_session.add(oos_obs)
+    db_session.commit()
+    assert oos_obs.id is not None
+    assert oos_obs.price is None
+    assert oos_obs.currency is None
 
 
 def test_price_observation_valid_decimal(db_session: Session):

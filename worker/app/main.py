@@ -7,7 +7,7 @@ import time
 
 from shared.queue.postgres import PostgresQueue
 
-from app.adapters.fake_store_adapter import FakeStoreAdapter
+from app.adapters.registry import AdapterRegistry
 from app.consumers.scraping_consumer import ScrapingConsumer
 from app.core.config import worker_settings
 from app.db.session import SessionLocal
@@ -41,9 +41,9 @@ def get_worker_status() -> dict[str, str]:
 def create_consumer() -> ScrapingConsumer:
     """Instantiate a fully-wired ScrapingConsumer."""
     queue = PostgresQueue(session_factory=SessionLocal)
-    adapter = FakeStoreAdapter()
+    registry = AdapterRegistry()
     repo = ObservationRepository()
-    service = ScrapingWorkerService(adapter=adapter, repository=repo)
+    service = ScrapingWorkerService(registry=registry, repository=repo)
     return ScrapingConsumer(
         queue=queue,
         service=service,
