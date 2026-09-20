@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Cpu, Tag, TrendingDown } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Clock, Cpu, Tag, TrendingDown } from "lucide-react";
 import { getPriceHistory, getProductById } from "../api/products";
 import { Badge } from "../components/common/Badge";
 import { ErrorAlert } from "../components/common/ErrorAlert";
 import { Skeleton } from "../components/common/Skeleton";
 import { PriceChart } from "../components/chart/PriceChart";
 import { StoreTable } from "../components/product/StoreTable";
+import { formatCapturedDate } from "../utils/freshness";
 import {
   PriceHistoryParams,
   ProductDetailOut,
@@ -95,20 +96,35 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     loadHistory();
   }, [loadHistory]);
 
-  // Compute lowest price across available stores
-  const lowestPriceInfo = useMemo(() => {
+  // Authoritative best price from backend (with legacy store scanning fallback for tests)
+  const bestOffer = useMemo(() => {
+    if (product?.best_price) {
+      return {
+        amount: product.best_price.amount,
+        store: product.best_price.store_name,
+        currency: product.best_price.currency,
+        condition: product.best_price.price_condition,
+        capturedAt: product.best_price.captured_at,
+      };
+    }
     if (!product || !product.stores || product.stores.length === 0) return null;
     let minAmount = Infinity;
     let minStore = "";
     let currency = "PEN";
+    let capturedAt: string | undefined;
 
     product.stores.forEach((s) => {
-      if (s.latest_price?.amount) {
+      if (
+        s.is_store_active !== false &&
+        s.latest_price?.amount &&
+        (s.latest_price.availability === "in_stock" || !s.latest_price.availability)
+      ) {
         const val = parseFloat(s.latest_price.amount);
         if (!isNaN(val) && val < minAmount) {
           minAmount = val;
           minStore = s.store_name;
-          currency = s.latest_price.currency;
+          currency = s.latest_price.currency || "PEN";
+          capturedAt = s.latest_price.captured_at;
         }
       }
     });
@@ -118,6 +134,8 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
       amount: minAmount.toFixed(2),
       store: minStore,
       currency,
+      condition: null,
+      capturedAt,
     };
   }, [product]);
 
@@ -265,7 +283,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             )}
 
             {/* Mejor Precio Destacado */}
-            {lowestPriceInfo ? (
+            {bestOffer ? (
               <div
                 style={{
                   marginTop: "0.5rem",
@@ -274,53 +292,127 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   border: "1px solid #bbf7d0",
                   borderRadius: "var(--radius-md)",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: "1rem",
+                  flexDirection: "column",
+                  gap: "0.75rem",
                 }}
               >
-                <div>
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: "#166534",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.35rem",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    <TrendingDown size={14} />
-                    Mejor precio actual
-                  </span>
-                  <div
-                    style={{
-                      fontSize: "1.75rem",
-                      fontWeight: 800,
-                      color: "var(--color-price-down)",
-                    }}
-                  >
-                    {lowestPriceInfo.currency} {lowestPriceInfo.amount}
-                  </div>
-                </div>
-
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.35rem",
-                    color: "#15803d",
-                    fontSize: "0.875rem",
-                    fontWeight: 600,
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: "1rem",
                   }}
                 >
-                  <Tag size={16} />
-                  <span>En {lowestPriceInfo.store}</span>
+                  <div>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "#166534",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      <TrendingDown size={14} />
+                      Mejor precio actual
+                    </span>
+                    <div
+                      style={{
+                        fontSize: "1.75rem",
+                        fontWeight: 800,
+                        color: "var(--color-price-down)",
+                      }}
+                    >
+                      {bestOffer.currency} {bestOffer.amount}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-end",
+                      gap: "0.35rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                        color: "#15803d",
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Tag size={16} />
+                      <span>En {bestOffer.store}</span>
+                    </div>
+                    {bestOffer.condition === "cash_or_bank_transfer" && (
+                      <Badge variant="warning">Precio en efectivo o transferencia</Badge>
+                    )}
+                  </div>
                 </div>
+
+                {/* Freshness state */}
+                {(() => {
+                  const { state, label } = formatCapturedDate(bestOffer.capturedAt);
+                  if (state === "unknown") {
+                    return (
+                      <div
+                        style={{
+                          fontSize: "0.8125rem",
+                          color: "var(--color-text-secondary)",
+                          borderTop: "1px solid #dcfce7",
+                          paddingTop: "0.5rem",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        Fecha de actualización no disponible
+                      </div>
+                    );
+                  }
+                  if (state === "stale") {
+                    return (
+                      <div
+                        style={{
+                          fontSize: "0.8125rem",
+                          color: "#b45309",
+                          borderTop: "1px solid #fed7aa",
+                          paddingTop: "0.5rem",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.35rem",
+                        }}
+                      >
+                        <AlertTriangle size={14} />
+                        <span>Advertencia: datos observados hace más de 7 días ({label})</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div
+                      style={{
+                        fontSize: "0.8125rem",
+                        color: "#166534",
+                        borderTop: "1px solid #dcfce7",
+                        paddingTop: "0.5rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                      }}
+                    >
+                      <Clock size={13} />
+                      <span>Actualizado recientemente: {label}</span>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div
@@ -329,12 +421,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   padding: "1rem",
                   backgroundColor: "#f8fafc",
                   borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--color-border)",
                   color: "var(--color-text-secondary)",
                   fontSize: "0.875rem",
                   fontStyle: "italic",
                 }}
               >
-                No se registran precios vigentes para este producto.
+                No se registran ofertas vigentes en stock para este producto.
               </div>
             )}
           </div>

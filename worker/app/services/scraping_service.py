@@ -89,6 +89,7 @@ class ScrapingWorkerService:
                 availability=scraped.availability,
                 captured_at=scraped.captured_at,
                 source_hash=source_hash,
+                price_condition=scraped.price_condition,
             )
 
             if was_inserted:

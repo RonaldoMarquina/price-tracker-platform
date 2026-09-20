@@ -28,14 +28,34 @@ describe("ProductCard component", () => {
     expect(screen.getByText(/Impacto/)).toBeInTheDocument();
   });
 
-  it("renders fallback message when latest_price is null", () => {
+  it("renders authoritative best_price with cash_or_bank_transfer badge", () => {
+    const productWithBestPrice: ProductListItemOut = {
+      ...mockProduct,
+      best_price: {
+        amount: "1799.00",
+        currency: "PEN",
+        store_id: "store-uuid-1",
+        store_name: "Computer Shop",
+        price_condition: "cash_or_bank_transfer",
+        captured_at: new Date().toISOString(),
+      },
+    };
+    render(<ProductCard product={productWithBestPrice} onSelect={vi.fn()} />);
+
+    expect(screen.getByText("PEN 1799.00")).toBeInTheDocument();
+    expect(screen.getByText(/Computer Shop/)).toBeInTheDocument();
+    expect(screen.getByText("Efectivo / Transf.")).toBeInTheDocument();
+  });
+
+  it("renders fallback message when no price offer is available", () => {
     const productWithoutPrice: ProductListItemOut = {
       ...mockProduct,
+      best_price: null,
       latest_price: null,
     };
     render(<ProductCard product={productWithoutPrice} onSelect={vi.fn()} />);
 
-    expect(screen.getByText("Sin precio registrado")).toBeInTheDocument();
+    expect(screen.getByText("Sin oferta disponible")).toBeInTheDocument();
   });
 
   it("triggers onSelect callback with product ID when clicked", () => {

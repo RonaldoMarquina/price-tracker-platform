@@ -726,6 +726,12 @@ def seed_dev_data(db: Session) -> dict[str, int]:
     ]
     for po_data in price_observations_data:
         sp = store_products_map[(po_data["product_slug"], po_data["store_domain"])]
+        store_domain = po_data["store_domain"]
+        condition = (
+            "cash_or_bank_transfer"
+            if store_domain in ("computershopperu.com", "cyccomputer.pe")
+            else "standard"
+        )
         existing = db.scalars(
             select(PriceObservation).where(
                 PriceObservation.store_product_id == sp.id,
@@ -738,6 +744,7 @@ def seed_dev_data(db: Session) -> dict[str, int]:
                 price=po_data["price"],
                 currency=po_data["currency"],
                 availability=po_data["availability"],
+                price_condition=condition,
                 source_hash=po_data["source_hash"],
                 captured_at=po_data["captured_at"],
             )
@@ -747,6 +754,7 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             existing.price = po_data["price"]
             existing.currency = po_data["currency"]
             existing.availability = po_data["availability"]
+            existing.price_condition = condition
 
     db.commit()
     logger.info("Seed completed. Created: %s", counts)

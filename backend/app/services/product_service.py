@@ -13,6 +13,7 @@ from app.schemas.price_history import (
     StorePriceSeriesOut,
 )
 from app.schemas.product import (
+    BestPriceOut,
     CategoryOut,
     LatestPriceOut,
     ProductDetailOut,
@@ -58,6 +59,18 @@ class ProductService:
                     store=store_name,
                 )
 
+            best_record = self.repo.get_best_price_for_product(db, prod.id)
+            best_price: BestPriceOut | None = None
+            if best_record:
+                best_price = BestPriceOut(
+                    amount=f"{best_record.price:.2f}",
+                    currency=best_record.currency,
+                    store_id=best_record.store_id,
+                    store_name=best_record.store_name,
+                    price_condition=best_record.price_condition,
+                    captured_at=best_record.captured_at,
+                )
+
             items.append(
                 ProductListItemOut(
                     id=prod.id,
@@ -66,6 +79,7 @@ class ProductService:
                     mpn=prod.mpn,
                     category=prod.category.name,
                     image_url=prod.image_url,
+                    best_price=best_price,
                     latest_price=latest_price,
                 )
             )
@@ -85,7 +99,7 @@ class ProductService:
 
         store_outs: list[ProductStoreOut] = []
         for sp in product.store_products:
-            if not sp.is_active or not sp.store.is_active:
+            if not sp.is_active:
                 continue
 
             latest_obs = self.repo.get_latest_price_for_store_product(db, sp.id)
@@ -96,6 +110,8 @@ class ProductService:
                     amount=amount_str,
                     currency=latest_obs.currency,
                     availability=latest_obs.availability,
+                    price_condition=latest_obs.price_condition,
+                    is_provisional=(latest_obs.availability == "unknown"),
                     captured_at=latest_obs.captured_at,
                 )
 
@@ -105,8 +121,21 @@ class ProductService:
                     store_name=sp.store.name,
                     product_url=sp.product_url,
                     external_sku=sp.external_sku,
+                    is_store_active=sp.store.is_active,
                     latest_price=store_price_out,
                 )
+            )
+
+        best_record = self.repo.get_best_price_for_product(db, product.id)
+        best_price: BestPriceOut | None = None
+        if best_record:
+            best_price = BestPriceOut(
+                amount=f"{best_record.price:.2f}",
+                currency=best_record.currency,
+                store_id=best_record.store_id,
+                store_name=best_record.store_name,
+                price_condition=best_record.price_condition,
+                captured_at=best_record.captured_at,
             )
 
         category_out = CategoryOut(
@@ -127,6 +156,7 @@ class ProductService:
             is_active=product.is_active,
             created_at=product.created_at,
             updated_at=product.updated_at,
+            best_price=best_price,
             stores=store_outs,
         )
 

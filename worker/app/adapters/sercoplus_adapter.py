@@ -133,6 +133,7 @@ class SercoplusAdapter(BaseStoreAdapter):
             price=final_price,
             currency=final_currency,
             availability=effective_avail,
+            price_condition="standard",
             captured_at=datetime.now(timezone.utc),
             sku=sku,
             mpn=mpn,

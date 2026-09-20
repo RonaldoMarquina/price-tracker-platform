@@ -72,6 +72,7 @@ class CycComputerAdapter(BaseStoreAdapter):
             price=price,
             currency=currency,
             availability=availability,
+            price_condition="cash_or_bank_transfer",
             captured_at=datetime.now(timezone.utc),
             sku=sku,
             mpn=raw_mpn,
@@ -153,9 +154,8 @@ class CycComputerAdapter(BaseStoreAdapter):
             return "out_of_stock"
 
         # 2. Check for explicit positive units in stock
-        if (
-            re.search(r"en stock\s+[1-9]\d*\s+art", combined_text)
-            or ("en stock" in combined_text and "0 art" not in combined_text)
+        if re.search(r"en stock\s+[1-9]\d*\s+art", combined_text) or (
+            "en stock" in combined_text and "0 art" not in combined_text
         ):
             return "in_stock"
 

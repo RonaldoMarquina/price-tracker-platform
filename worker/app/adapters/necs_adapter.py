@@ -201,6 +201,7 @@ class NecsAdapter(BaseStoreAdapter):
             price=final_price,
             currency=final_currency,
             availability=norm_availability,
+            price_condition="standard",
             captured_at=datetime.now(timezone.utc),
             sku=sku,
             mpn=mpn,

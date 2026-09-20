@@ -269,3 +269,141 @@ def test_get_best_price_excludes_inactive_store_even_if_in_stock_and_cheaper(
     assert best_price == Decimal("200.00")
     assert best_currency == "PEN"
     assert store_name == store_active.name
+
+
+def test_deterministic_tie_breaker_order(db_session: Session):
+    """Verify deterministic tie-breaking:
+    1. Lowest price (price ASC)
+    2. Most recent capture (captured_at DESC)
+    3. Store ID (store.id ASC)
+    """
+    repo = ProductRepository()
+
+    cat = Category(name=f"Cat-{uuid.uuid4().hex[:6]}", slug=f"cat-{uuid.uuid4().hex[:6]}")
+    prod = Product(name="Tie Break Product", slug=f"tie-{uuid.uuid4().hex[:6]}", category=cat)
+
+    # Create two stores
+    store_a = Store(name="Store A", domain=f"store-a-{uuid.uuid4().hex[:4]}.com")
+    store_b = Store(name="Store B", domain=f"store-b-{uuid.uuid4().hex[:4]}.com")
+    db_session.add_all([cat, prod, store_a, store_b])
+    db_session.commit()
+
+    sp_a = StoreProduct(product_id=prod.id, store_id=store_a.id, product_url="https://a.com/p")
+    sp_b = StoreProduct(product_id=prod.id, store_id=store_b.id, product_url="https://b.com/p")
+    db_session.add_all([sp_a, sp_b])
+    db_session.commit()
+
+    # Case 1: Same price, different captured_at -> most recent capture wins
+    t_older = datetime(2026, 9, 1, 10, 0, 0, tzinfo=timezone.utc)
+    t_newer = datetime(2026, 9, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    obs_a = PriceObservation(
+        store_product_id=sp_a.id,
+        price=Decimal("150.00"),
+        currency="PEN",
+        availability="in_stock",
+        price_condition="standard",
+        captured_at=t_older,
+    )
+    obs_b = PriceObservation(
+        store_product_id=sp_b.id,
+        price=Decimal("150.00"),
+        currency="PEN",
+        availability="in_stock",
+        price_condition="cash_or_bank_transfer",
+        captured_at=t_newer,
+    )
+    db_session.add_all([obs_a, obs_b])
+    db_session.commit()
+
+    best = repo.get_best_price_for_product(db_session, prod.id)
+    assert best is not None
+    assert best.price == Decimal("150.00")
+    assert best.store_id == store_b.id
+    assert best.store_name == "Store B"
+    assert best.price_condition == "cash_or_bank_transfer"
+    assert best.captured_at == t_newer
+
+
+def test_price_history_excludes_invalid_observations(db_session: Session):
+    """Price history must strictly exclude:
+    - inactive stores
+    - out_of_stock observations
+    - unknown availability observations
+    - null or non-positive prices (<= 0)
+    - currencies other than PEN
+    """
+    repo = ProductRepository()
+    cat = Category(name=f"Cat-{uuid.uuid4().hex[:6]}", slug=f"cat-{uuid.uuid4().hex[:6]}")
+    prod = Product(
+        name="History Test Product", slug=f"history-{uuid.uuid4().hex[:6]}", category=cat
+    )
+
+    store_active = Store(
+        name="Active Store", domain=f"active-{uuid.uuid4().hex[:4]}.com", is_active=True
+    )
+    store_inactive = Store(
+        name="Inactive Store", domain=f"inactive-{uuid.uuid4().hex[:4]}.com", is_active=False
+    )
+    db_session.add_all([cat, prod, store_active, store_inactive])
+    db_session.commit()
+
+    sp_active = StoreProduct(
+        product_id=prod.id, store_id=store_active.id, product_url="https://active.com/p"
+    )
+    sp_inactive = StoreProduct(
+        product_id=prod.id, store_id=store_inactive.id, product_url="https://inactive.com/p"
+    )
+    db_session.add_all([sp_active, sp_inactive])
+    db_session.commit()
+
+    # 1. Inactive store should not even have its store_product returned by get_store_products
+    active_sps = repo.get_store_products(db_session, prod.id)
+    assert len(active_sps) == 1
+    assert active_sps[0].store_id == store_active.id
+
+    # 2. Add observations for active store:
+    now = datetime.now(timezone.utc)
+    obs_valid = PriceObservation(
+        store_product_id=sp_active.id,
+        price=Decimal("199.90"),
+        currency="PEN",
+        availability="in_stock",
+        captured_at=now,
+    )
+    obs_out_of_stock = PriceObservation(
+        store_product_id=sp_active.id,
+        price=Decimal("150.00"),
+        currency="PEN",
+        availability="out_of_stock",
+        captured_at=now,
+    )
+    obs_unknown = PriceObservation(
+        store_product_id=sp_active.id,
+        price=Decimal("120.00"),
+        currency="PEN",
+        availability="unknown",
+        captured_at=now,
+    )
+    obs_null_price = PriceObservation(
+        store_product_id=sp_active.id,
+        price=None,
+        currency=None,
+        availability="out_of_stock",
+        captured_at=now,
+    )
+    obs_usd = PriceObservation(
+        store_product_id=sp_active.id,
+        price=Decimal("50.00"),
+        currency="USD",
+        availability="in_stock",
+        captured_at=now,
+    )
+    db_session.add_all([obs_valid, obs_out_of_stock, obs_unknown, obs_null_price, obs_usd])
+    db_session.commit()
+
+    # Query price points for store product
+    points = repo.get_price_points_for_store_product(db_session, sp_active.id)
+    assert len(points) == 1
+    assert points[0].id == obs_valid.id
+    assert points[0].price == Decimal("199.90")

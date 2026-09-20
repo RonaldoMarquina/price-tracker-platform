@@ -145,6 +145,10 @@ class PriceObservation(Base):
             "(price IS NOT NULL AND price > 0 AND currency IS NOT NULL)",
             name="ck_price_observations_price_currency_valid",
         ),
+        CheckConstraint(
+            "price_condition IS NULL OR price_condition IN ('standard', 'cash_or_bank_transfer')",
+            name="ck_price_observations_price_condition",
+        ),
         UniqueConstraint("source_hash", name="uq_price_observations_source_hash"),
         Index(
             "ix_price_observations_store_product_captured_at",
@@ -160,6 +164,7 @@ class PriceObservation(Base):
     price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     availability: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    price_condition: Mapped[str | None] = mapped_column(String(40), nullable=True)
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

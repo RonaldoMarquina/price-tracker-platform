@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, model_validator
 
 Availability = Literal["in_stock", "out_of_stock", "unknown"]
+PriceCondition = Literal["standard", "cash_or_bank_transfer"]
 
 
 class ScrapingError(Exception):
@@ -51,6 +52,7 @@ class ScrapedPriceResult(BaseModel):
     price: Decimal | None = None
     currency: str | None = None
     availability: Availability = "in_stock"
+    price_condition: PriceCondition | None = None
     captured_at: datetime
     sku: str | None = None
     mpn: str | None = None

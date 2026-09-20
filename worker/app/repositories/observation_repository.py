@@ -37,6 +37,7 @@ class ObservationRepository:
         availability: str | None,
         captured_at: datetime,
         source_hash: str,
+        price_condition: str | None = None,
     ) -> bool:
         """Insert observation with ON CONFLICT (source_hash) DO NOTHING for idempotency."""
         stmt = (
@@ -47,6 +48,7 @@ class ObservationRepository:
                 price=price,
                 currency=currency,
                 availability=availability,
+                price_condition=price_condition,
                 captured_at=captured_at,
                 source_hash=source_hash,
             )

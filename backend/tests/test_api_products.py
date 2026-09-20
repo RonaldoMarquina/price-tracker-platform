@@ -94,6 +94,7 @@ def test_list_products_default_pagination():
     assert "name" in item
     assert "category" in item
     assert "latest_price" in item
+    assert "best_price" in item
 
 
 def test_list_products_search_filter():
@@ -150,6 +151,7 @@ def test_get_product_detail_success():
     assert data["id"] == str(product.id)
     assert data["name"] == product.name
     assert "category" in data
+    assert "best_price" in data
     assert "stores" in data
     assert isinstance(data["stores"], list)
 
@@ -158,6 +160,11 @@ def test_get_product_detail_success():
         assert "store_id" in first_store
         assert "store_name" in first_store
         assert "product_url" in first_store
+        assert "is_store_active" in first_store
+        if first_store.get("latest_price"):
+            lp = first_store["latest_price"]
+            assert "price_condition" in lp
+            assert "is_provisional" in lp
 
 
 def test_get_product_detail_not_found_returns_404():

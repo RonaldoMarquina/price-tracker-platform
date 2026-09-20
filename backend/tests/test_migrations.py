@@ -49,6 +49,116 @@ def test_price_positive_check_constraint_exists():
     assert "ck_price_observations_price_currency_valid" in constraint_names
 
 
+def test_price_condition_column_and_constraint_exists():
+    """Verify price_condition column and check constraint exist on price_observations."""
+    inspector = inspect(engine)
+    columns = {col["name"]: col for col in inspector.get_columns("price_observations")}
+    assert "price_condition" in columns
+    assert columns["price_condition"]["nullable"] is True
+
+    check_constraints = inspector.get_check_constraints("price_observations")
+    constraint_names = [cc["name"] for cc in check_constraints]
+    assert "ck_price_observations_price_condition" in constraint_names
+
+
+def test_price_condition_check_constraint_enforces_allowed_values(db_session: Session):
+    """Check constraint accepts standard, cash_or_bank_transfer, NULL, and rejects invalid."""
+    import uuid
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+
+    from app.db.models import Category, PriceObservation, Product, Store, StoreProduct
+
+    cat = Category(name=f"Cat-{uuid.uuid4().hex[:6]}", slug=f"cat-{uuid.uuid4().hex[:6]}")
+    prod = Product(name="Test Product", slug=f"prod-{uuid.uuid4().hex[:6]}", category=cat)
+    store = Store(name=f"Store-{uuid.uuid4().hex[:4]}", domain=f"st-{uuid.uuid4().hex[:4]}.com")
+    db_session.add_all([cat, prod, store])
+    db_session.flush()
+
+    sp = StoreProduct(product_id=prod.id, store_id=store.id, product_url="https://test.com/p")
+    db_session.add(sp)
+    db_session.flush()
+
+    # 1. Standard condition
+    obs_standard = PriceObservation(
+        store_product_id=sp.id,
+        price=Decimal("100.00"),
+        currency="PEN",
+        availability="in_stock",
+        price_condition="standard",
+        captured_at=datetime.now(timezone.utc),
+    )
+    # 2. Cash or bank transfer condition
+    obs_cash = PriceObservation(
+        store_product_id=sp.id,
+        price=Decimal("95.00"),
+        currency="PEN",
+        availability="in_stock",
+        price_condition="cash_or_bank_transfer",
+        captured_at=datetime.now(timezone.utc),
+    )
+    # 3. NULL condition (historical observation)
+    obs_null = PriceObservation(
+        store_product_id=sp.id,
+        price=Decimal("90.00"),
+        currency="PEN",
+        availability="in_stock",
+        price_condition=None,
+        captured_at=datetime.now(timezone.utc),
+    )
+    db_session.add_all([obs_standard, obs_cash, obs_null])
+    db_session.flush()
+
+    # 4. Invalid condition must raise IntegrityError
+    obs_invalid = PriceObservation(
+        store_product_id=sp.id,
+        price=Decimal("80.00"),
+        currency="PEN",
+        availability="in_stock",
+        price_condition="crypto_discount",
+        captured_at=datetime.now(timezone.utc),
+    )
+    db_session.add(obs_invalid)
+    with pytest.raises(IntegrityError):
+        db_session.flush()
+
+
+def test_migration_004_safe_downgrade_and_upgrade():
+    """Verify safe downgrade and upgrade of migration 004 on test database.
+
+    Downgrade drops price_condition and preserves other columns.
+    Upgrade head restores price_condition as nullable.
+    """
+    import pathlib
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    backend_dir = pathlib.Path(__file__).parent.parent
+    alembic_cfg = Config(str(backend_dir / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+    # Downgrade 1 revision (004 -> 003)
+    command.downgrade(alembic_cfg, "-1")
+    inspector = inspect(engine)
+    cols_after_down = [col["name"] for col in inspector.get_columns("price_observations")]
+    assert "price_condition" not in cols_after_down
+    assert "price" in cols_after_down
+    assert "currency" in cols_after_down
+
+    # Upgrade back to head (003 -> 004)
+    command.upgrade(alembic_cfg, "head")
+    inspector_up = inspect(engine)
+    cols_after_up = {col["name"]: col for col in inspector_up.get_columns("price_observations")}
+    assert "price_condition" in cols_after_up
+    assert cols_after_up["price_condition"]["nullable"] is True
+
+
 def test_seed_idempotency():
     """Verify seed function can be called multiple times without duplicate records or errors."""
     db: Session = SessionLocal()

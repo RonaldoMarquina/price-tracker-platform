@@ -3,6 +3,17 @@
  * Sourced strictly from /openapi.json & docs/API_SPEC.md.
  */
 
+export type PriceCondition = "standard" | "cash_or_bank_transfer";
+
+export interface BestPriceOut {
+  amount: string;
+  currency: string;
+  store_id: string;
+  store_name: string;
+  price_condition: PriceCondition | null;
+  captured_at: string;
+}
+
 export interface LatestPriceOut {
   amount: string;
   currency: string;
@@ -15,7 +26,8 @@ export interface ProductListItemOut {
   brand: string | null;
   category: string;
   image_url: string | null;
-  latest_price: LatestPriceOut | null;
+  best_price?: BestPriceOut | null;
+  latest_price?: LatestPriceOut | null;
 }
 
 export interface ProductListResponse {
@@ -32,9 +44,11 @@ export interface CategoryOut {
 }
 
 export interface StoreProductPriceOut {
-  amount: string;
-  currency: string;
+  amount: string | null;
+  currency: string | null;
   availability: string | null;
+  price_condition?: PriceCondition | null;
+  is_provisional?: boolean;
   captured_at: string;
 }
 
@@ -43,6 +57,7 @@ export interface ProductStoreOut {
   store_name: string;
   product_url: string;
   external_sku: string | null;
+  is_store_active: boolean;
   latest_price: StoreProductPriceOut | null;
 }
 
@@ -57,6 +72,7 @@ export interface ProductDetailOut {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  best_price?: BestPriceOut | null;
   stores: ProductStoreOut[];
 }
 

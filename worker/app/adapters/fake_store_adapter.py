@@ -37,5 +37,6 @@ class FakeStoreAdapter(BaseStoreAdapter):
             price=calculated_price,
             currency="PEN",
             availability="in_stock",
+            price_condition="standard",
             captured_at=datetime.now(timezone.utc),
         )

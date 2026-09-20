@@ -28,6 +28,7 @@ describe("ProductDetailPage component", () => {
         store_name: "SercoPlus",
         product_url: "https://sercoplus.com/i7-14700k",
         external_sku: "SP-14700K",
+        is_store_active: true,
         latest_price: {
           amount: "1720.00",
           currency: "PEN",
@@ -40,6 +41,7 @@ describe("ProductDetailPage component", () => {
         store_name: "CyC Computer",
         product_url: "https://cyccomputer.pe/i7-14700k",
         external_sku: "CYC-14700K",
+        is_store_active: true,
         latest_price: {
           amount: "1780.00",
           currency: "PEN",
@@ -133,5 +135,90 @@ describe("ProductDetailPage component", () => {
     fireEvent.click(backButton);
 
     expect(onNavigate).toHaveBeenCalledWith("/products");
+  });
+
+  it("renders authoritative best_price with cash_or_bank_transfer condition badge", async () => {
+    const detailWithCashCondition: ProductDetailOut = {
+      ...mockProductDetail,
+      best_price: {
+        amount: "1699.00",
+        currency: "PEN",
+        store_id: "store-cs",
+        store_name: "Computer Shop",
+        price_condition: "cash_or_bank_transfer",
+        captured_at: new Date().toISOString(),
+      },
+    };
+    vi.spyOn(productsApi, "getProductById").mockResolvedValueOnce(detailWithCashCondition);
+    vi.spyOn(productsApi, "getPriceHistory").mockResolvedValueOnce(mockPriceHistory);
+
+    render(<ProductDetailPage productId="prod-detail-1" onNavigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("PEN 1699.00")).toBeInTheDocument();
+      expect(screen.getByText("En Computer Shop")).toBeInTheDocument();
+      expect(screen.getByText("Precio en efectivo o transferencia")).toBeInTheDocument();
+    });
+  });
+
+  it("renders warning when best offer data is stale (> 7 days)", async () => {
+    const staleDate = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    const detailWithStaleData: ProductDetailOut = {
+      ...mockProductDetail,
+      best_price: {
+        amount: "1750.00",
+        currency: "PEN",
+        store_id: "store-mk",
+        store_name: "Memory Kings",
+        price_condition: "standard",
+        captured_at: staleDate,
+      },
+    };
+    vi.spyOn(productsApi, "getProductById").mockResolvedValueOnce(detailWithStaleData);
+    vi.spyOn(productsApi, "getPriceHistory").mockResolvedValueOnce(mockPriceHistory);
+
+    render(<ProductDetailPage productId="prod-detail-1" onNavigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Advertencia: datos observados hace más de 7 días/i)).toBeInTheDocument();
+    });
+  });
+
+  it("renders 'Fecha de actualización no disponible' when captured_at is unknown/invalid", async () => {
+    const detailWithUnknownDate: ProductDetailOut = {
+      ...mockProductDetail,
+      best_price: {
+        amount: "1750.00",
+        currency: "PEN",
+        store_id: "store-mk",
+        store_name: "Memory Kings",
+        price_condition: null,
+        captured_at: "", // Invalid/missing
+      },
+    };
+    vi.spyOn(productsApi, "getProductById").mockResolvedValueOnce(detailWithUnknownDate);
+    vi.spyOn(productsApi, "getPriceHistory").mockResolvedValueOnce(mockPriceHistory);
+
+    render(<ProductDetailPage productId="prod-detail-1" onNavigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Fecha de actualización no disponible").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("renders no-stock notice when product has no active in-stock offers", async () => {
+    const detailNoOffers: ProductDetailOut = {
+      ...mockProductDetail,
+      best_price: null,
+      stores: [],
+    };
+    vi.spyOn(productsApi, "getProductById").mockResolvedValueOnce(detailNoOffers);
+    vi.spyOn(productsApi, "getPriceHistory").mockResolvedValueOnce({ product_id: "prod-detail-1", series: [] });
+
+    render(<ProductDetailPage productId="prod-detail-1" onNavigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No se registran ofertas vigentes en stock para este producto.")).toBeInTheDocument();
+    });
   });
 });

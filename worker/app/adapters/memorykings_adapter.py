@@ -144,11 +144,7 @@ class MemoryKingsAdapter(BaseStoreAdapter):
         parsed_price: Decimal | None = None
         if raw_price:
             cleaned_price = (
-                raw_price.strip()
-                .replace("S/.", "")
-                .replace("S/", "")
-                .replace("PEN", "")
-                .strip()
+                raw_price.strip().replace("S/.", "").replace("S/", "").replace("PEN", "").strip()
             )
             try:
                 # Handle comma decimal vs dot decimal
@@ -190,6 +186,7 @@ class MemoryKingsAdapter(BaseStoreAdapter):
             price=parsed_price,
             currency=final_currency,
             availability=norm_availability,
+            price_condition="standard",
             captured_at=datetime.now(timezone.utc),
             sku=sku,
             mpn=mpn,

@@ -1,6 +1,7 @@
 """Product repository handling database access via SQLAlchemy ORM."""
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
@@ -114,12 +115,17 @@ class ProductRepository:
 
     def get_best_price_for_product(
         self, db: Session, product_id: uuid.UUID, currency: str = "PEN"
-    ) -> tuple[Decimal, str, str] | None:
+    ) -> "BestPriceRecord | None":
         """Find the lowest active in-stock price observation for a product across all stores.
 
         Excludes observations with price=None, price<=0, availability='out_of_stock',
         or availability='unknown'. Only explicit in_stock products from active stores can
         compete as best offer in the specified comparable currency (default: 'PEN').
+
+        Deterministic tie-break order:
+        1. Lowest price (price ASC)
+        2. Most recent capture (captured_at DESC)
+        3. Stable store identifier (store_id ASC)
         """
         subq = (
             select(
@@ -139,7 +145,10 @@ class ProductRepository:
             select(
                 PriceObservation.price,
                 PriceObservation.currency,
+                Store.id,
                 Store.name,
+                PriceObservation.price_condition,
+                PriceObservation.captured_at,
             )
             .join(
                 subq,
@@ -156,12 +165,23 @@ class ProductRepository:
                 PriceObservation.currency == currency,
                 PriceObservation.availability == "in_stock",
             )
-            .order_by(PriceObservation.price.asc())
+            .order_by(
+                PriceObservation.price.asc(),
+                PriceObservation.captured_at.desc(),
+                Store.id.asc(),
+            )
             .limit(1)
         )
         row = db.execute(stmt).first()
         if row and row[0] is not None and row[1] is not None:
-            return (row[0], row[1], row[2])
+            return BestPriceRecord(
+                price=row[0],
+                currency=row[1],
+                store_id=row[2],
+                store_name=row[3],
+                price_condition=row[4],
+                captured_at=row[5],
+            )
         return None
 
     def get_by_id(self, db: Session, product_id: uuid.UUID) -> Product | None:
@@ -214,8 +234,17 @@ class ProductRepository:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> list[PriceObservation]:
-        """Fetch price points in chronological order within an optional date range."""
-        stmt = select(PriceObservation).where(PriceObservation.store_product_id == store_product_id)
+        """Fetch price points in chronological order within an optional date range.
+
+        Filters out observations that are null, <= 0, not in PEN, or not in_stock.
+        """
+        stmt = select(PriceObservation).where(
+            PriceObservation.store_product_id == store_product_id,
+            PriceObservation.price.is_not(None),
+            PriceObservation.price > 0,
+            PriceObservation.currency == "PEN",
+            PriceObservation.availability == "in_stock",
+        )
         if date_from:
             stmt = stmt.where(PriceObservation.captured_at >= date_from)
         if date_to:
@@ -223,6 +252,23 @@ class ProductRepository:
 
         stmt = stmt.order_by(PriceObservation.captured_at.asc())
         return list(db.scalars(stmt).all())
+
+
+@dataclass
+class BestPriceRecord:
+    """Structured representation of the best in-stock price offer."""
+
+    price: Decimal
+    currency: str
+    store_id: uuid.UUID
+    store_name: str
+    price_condition: str | None
+    captured_at: datetime
+
+    def __iter__(self):
+        # Support tuple unpacking for backward compatibility in existing tests:
+        # best_price, best_currency, store_name = best
+        return iter((self.price, self.currency, self.store_name))
 
 
 product_repository = ProductRepository()

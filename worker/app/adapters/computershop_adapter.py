@@ -72,6 +72,7 @@ class ComputerShopAdapter(BaseStoreAdapter):
             price=price,
             currency=currency,
             availability=availability,
+            price_condition="cash_or_bank_transfer",
             captured_at=datetime.now(timezone.utc),
             sku=sku,
             mpn=raw_mpn,

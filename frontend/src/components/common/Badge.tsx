@@ -2,7 +2,7 @@ import React from "react";
 
 export interface BadgeProps {
   children: React.ReactNode;
-  variant?: "default" | "primary" | "success" | "danger";
+  variant?: "default" | "primary" | "success" | "danger" | "warning";
   style?: React.CSSProperties;
 }
 
