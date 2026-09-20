@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from shared.queue.models import LocalQueueMessage  # noqa: F401
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -139,6 +140,7 @@ class PriceObservation(Base):
     __tablename__ = "price_observations"
     __table_args__ = (
         CheckConstraint("price > 0", name="ck_price_observations_price_positive"),
+        UniqueConstraint("source_hash", name="uq_price_observations_source_hash"),
         Index(
             "ix_price_observations_store_product_captured_at",
             "store_product_id",

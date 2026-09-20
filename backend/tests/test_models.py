@@ -9,18 +9,21 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import Category, PriceObservation, Product, Store, StoreProduct
-from app.db.session import SessionLocal
+from app.db.session import engine
 
 
 @pytest.fixture
 def db_session():
-    """Provide a database session wrapped in a transaction that is rolled back."""
-    db = SessionLocal()
+    """Provide a database session wrapped in an outer transaction that rolls back everything."""
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
     try:
-        yield db
+        yield session
     finally:
-        db.rollback()
-        db.close()
+        session.close()
+        transaction.rollback()
+        connection.close()
 
 
 def test_create_category(db_session: Session):

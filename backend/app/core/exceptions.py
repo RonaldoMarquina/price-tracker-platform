@@ -26,3 +26,20 @@ class ProductNotFoundError(NotFoundError):
         if product_id:
             message = f"El producto con ID '{product_id}' no existe."
         super().__init__(code="PRODUCT_NOT_FOUND", message=message)
+
+
+class StoreNotFoundError(NotFoundError):
+    """Raised when a requested store does not exist."""
+
+    def __init__(self, store_id: str | None = None) -> None:
+        message = "La tienda solicitada no existe."
+        if store_id:
+            message = f"La tienda con ID '{store_id}' no existe."
+        super().__init__(code="STORE_NOT_FOUND", message=message)
+
+
+class UnauthorizedError(AppException):
+    """Raised when internal API authorization fails."""
+
+    def __init__(self, message: str = "Credenciales de autorización inválidas o ausentes.") -> None:
+        super().__init__(code="UNAUTHORIZED", message=message, status_code=401)

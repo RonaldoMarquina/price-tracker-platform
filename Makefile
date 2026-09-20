@@ -39,11 +39,13 @@ migrate-down:
 seed:
 	cd backend && PYTHONPATH=. ../$(PYTHON) -m app.db.seed
 
+TEST_DATABASE_URL ?= postgresql://postgres:postgres@localhost:5432/price_tracker_test
+
 test-backend:
-	cd backend && PYTHONPATH=. ../$(PYTEST) -v
+	cd backend && PYTHONPATH=. DATABASE_URL="$(TEST_DATABASE_URL)" ../$(PYTEST) -v
 
 test-worker:
-	cd worker && PYTHONPATH=. ../$(PYTEST) -v
+	cd worker && PYTHONPATH=. DATABASE_URL="$(TEST_DATABASE_URL)" ../$(PYTEST) -v
 
 test-frontend:
 	$(DOCKER_NODE) npm test

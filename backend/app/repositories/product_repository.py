@@ -58,12 +58,14 @@ class ProductRepository:
 
                 term_clauses = []
                 for pat in patterns_to_check:
-                    term_clauses.extend([
-                        Product.name.ilike(pat),
-                        Product.brand.ilike(pat),
-                        Product.model.ilike(pat),
-                        Category.name.ilike(pat),
-                    ])
+                    term_clauses.extend(
+                        [
+                            Product.name.ilike(pat),
+                            Product.brand.ilike(pat),
+                            Product.model.ilike(pat),
+                            Category.name.ilike(pat),
+                        ]
+                    )
                 base_query = base_query.where(or_(*term_clauses))
 
         if category_slug and category_slug.strip():
