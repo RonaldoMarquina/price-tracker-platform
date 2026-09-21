@@ -2,6 +2,13 @@
 
 import logging
 
+from shared.adapters.store_capabilities import (
+    DISABLED_DOMAINS as DEFAULT_DISABLED_DOMAINS,
+)
+from shared.adapters.store_capabilities import (
+    normalize_store_domain,
+)
+
 from app.adapters.base import (
     BaseStoreAdapter,
     FatalScrapingError,
@@ -15,9 +22,6 @@ from app.adapters.necs_adapter import NecsAdapter
 from app.adapters.sercoplus_adapter import SercoplusAdapter
 
 logger = logging.getLogger("price-tracker.worker.adapters.registry")
-
-
-DEFAULT_DISABLED_DOMAINS = {"sercoplus.com", "www.sercoplus.com"}
 
 
 class AdapterRegistry:
@@ -96,12 +100,18 @@ class AdapterRegistry:
 
     def _normalize_domain(self, domain: str) -> str:
         """Normalize domain string by stripping protocols, slashes, and whitespace."""
-        cleaned = domain.strip().lower()
-        if cleaned.startswith("https://"):
-            cleaned = cleaned[8:]
-        elif cleaned.startswith("http://"):
-            cleaned = cleaned[7:]
-        return cleaned.strip("/")
+        return normalize_store_domain(domain)
+
+    def is_domain_dispatchable(self, domain: str, allow_offline: bool = False) -> tuple[bool, str]:
+        """Check if a domain is registered and active for dispatching."""
+        norm = self._normalize_domain(domain)
+        if norm in self.disabled_domains:
+            return False, "ADAPTER_DISABLED"
+        if norm == "fake" and not allow_offline:
+            return False, "ADAPTER_OFFLINE_ONLY"
+        if norm not in self._adapters:
+            return False, "NO_ADAPTER_REGISTERED"
+        return True, "ENABLED"
 
 
 # Default global registry instance

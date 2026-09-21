@@ -204,7 +204,23 @@ class ScrapingJob(Base):
             "finished_at IS NULL OR started_at IS NULL OR finished_at >= started_at",
             name="ck_scraping_jobs_temporal_coherence",
         ),
+        CheckConstraint(
+            "trigger_type IN ('scheduled', 'manual')",
+            name="ck_scraping_jobs_trigger_type",
+        ),
+        CheckConstraint(
+            "(trigger_type = 'scheduled' AND dispatch_slot IS NOT NULL) "
+            "OR (trigger_type = 'manual' AND dispatch_slot IS NULL)",
+            name="ck_scraping_jobs_dispatch_slot_coherence",
+        ),
         Index("ix_scraping_jobs_created_at_desc", text("created_at DESC")),
+        Index(
+            "uq_scraping_jobs_store_dispatch_slot",
+            "store_id",
+            "dispatch_slot",
+            unique=True,
+            postgresql_where=text("dispatch_slot IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -217,6 +233,10 @@ class ScrapingJob(Base):
     status: Mapped[str] = mapped_column(
         String(30), default="queued", server_default=text("'queued'"), nullable=False, index=True
     )
+    trigger_type: Mapped[str] = mapped_column(
+        String(20), default="manual", server_default=text("'manual'"), nullable=False
+    )
+    dispatch_slot: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     batch_size: Mapped[int] = mapped_column(
         Integer, default=1, server_default=text("1"), nullable=False
     )

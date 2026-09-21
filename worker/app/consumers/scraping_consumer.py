@@ -163,6 +163,8 @@ class ScrapingConsumer:
                     id=scraping_msg.job_id,
                     store_id=scraping_msg.store_id,
                     status="processing",
+                    trigger_type="manual",
+                    dispatch_slot=None,
                     batch_size=len(scraping_msg.product_ids),
                     observations_created=0,
                     attempts=attempts,

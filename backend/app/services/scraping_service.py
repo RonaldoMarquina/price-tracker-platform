@@ -72,6 +72,8 @@ class ScrapingService:
             id=job_id,
             store_id=payload.store_id,
             status="queued",
+            trigger_type="manual",
+            dispatch_slot=None,
             batch_size=len(payload.product_ids),
             observations_created=0,
             attempts=0,

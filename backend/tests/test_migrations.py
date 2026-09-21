@@ -161,6 +161,37 @@ def test_migration_004_safe_downgrade_and_upgrade():
     assert cols_after_up["price_condition"]["nullable"] is True
 
 
+def test_migration_006_safe_downgrade_and_upgrade():
+    """Verify safe downgrade and upgrade of migration 006 on test database."""
+    import pathlib
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    backend_dir = pathlib.Path(__file__).parent.parent
+    alembic_cfg = Config(str(backend_dir / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+    # Downgrade 006 (006 -> 005)
+    try:
+        command.downgrade(alembic_cfg, "005_add_scraping_jobs_table")
+        inspector = inspect(engine)
+        cols_after_down = [col["name"] for col in inspector.get_columns("scraping_jobs")]
+        assert "trigger_type" not in cols_after_down
+        assert "dispatch_slot" not in cols_after_down
+    finally:
+        # Upgrade back to head
+        command.upgrade(alembic_cfg, "head")
+
+    inspector_up = inspect(engine)
+    cols_after_up = {col["name"]: col for col in inspector_up.get_columns("scraping_jobs")}
+    assert "trigger_type" in cols_after_up
+    assert "dispatch_slot" in cols_after_up
+    assert cols_after_up["dispatch_slot"]["nullable"] is True
+
+
 def test_seed_idempotency():
     """Verify seed function can be called multiple times without duplicate records or errors."""
     db: Session = SessionLocal()

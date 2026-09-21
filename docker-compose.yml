@@ -83,6 +83,34 @@ services:
         condition: service_healthy
     command: python -m app.main
 
+  dispatcher:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: price_tracker_dispatcher
+    profiles: ["dispatcher"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-price_tracker}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-price_tracker}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      ENVIRONMENT: development
+      DISPATCHER_ENABLED: ${DISPATCHER_ENABLED:-false}
+      DISPATCH_INTERVAL_SECONDS: ${DISPATCH_INTERVAL_SECONDS:-3600}
+      PYTHONPATH: "/app"
+    volumes:
+      - ./backend/app:/app/app
+      - ./shared:/app/shared
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    command: python -m app.dispatcher
+
 
 
 volumes:
