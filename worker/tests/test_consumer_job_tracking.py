@@ -33,9 +33,7 @@ from app.services.scraping_service import ScrapingWorkerService
 def setup_test_entities() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
     """Ensure a valid active Store, Product and StoreProduct exist in PostgreSQL."""
     with SessionLocal() as db:
-        store = db.scalars(
-            select(Store).where(Store.is_active.is_(True))
-        ).first()
+        store = db.scalars(select(Store).where(Store.is_active.is_(True))).first()
         if not store:
             store = Store(
                 id=uuid.uuid4(),
@@ -46,9 +44,7 @@ def setup_test_entities() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
             db.add(store)
             db.flush()
 
-        product = db.scalars(
-            select(Product).where(Product.is_active.is_(True))
-        ).first()
+        product = db.scalars(select(Product).where(Product.is_active.is_(True))).first()
         if not product:
             product = Product(
                 id=uuid.uuid4(),
@@ -314,9 +310,9 @@ def test_consumer_transition_processing_to_retrying_to_processing_to_completed()
 
         # Make message visible again for attempt 2
         with SessionLocal() as db:
-            db.query(LocalQueueMessage).filter(
-                LocalQueueMessage.queue_name == test_queue
-            ).update({"visible_at": datetime.now(timezone.utc) - timedelta(seconds=5)})
+            db.query(LocalQueueMessage).filter(LocalQueueMessage.queue_name == test_queue).update(
+                {"visible_at": datetime.now(timezone.utc) - timedelta(seconds=5)}
+            )
             db.commit()
 
         # Attempt 2: Service succeeds
@@ -446,6 +442,9 @@ def test_consumer_transition_skipped_store_blocked():
             assert persisted.status == "skipped"
             assert "SKIPPED_STORE_BLOCKED" in str(persisted.error_reason)
             assert persisted.finished_at is not None
+            assert persisted.sent_to_dlq_at is None
+            assert persisted.replay_count == 0
+            assert persisted.replayed_at is None
     finally:
         with SessionLocal() as db:
             db.query(ScrapingJob).filter(ScrapingJob.id == job_id).delete()
@@ -477,9 +476,9 @@ def test_consumer_transition_exhausted_retries_to_dead_letter():
 
     # Set attempts = 2 so the next claim becomes attempts = 3 (= max_retries)
     with SessionLocal() as db:
-        db.query(LocalQueueMessage).filter(
-            LocalQueueMessage.queue_name == test_queue
-        ).update({"attempts": 2})
+        db.query(LocalQueueMessage).filter(LocalQueueMessage.queue_name == test_queue).update(
+            {"attempts": 2}
+        )
         db.commit()
 
     mock_service = MagicMock(spec=ScrapingWorkerService)
@@ -658,13 +657,13 @@ def test_consumer_recovery_from_abandoned_processing():
     )
     queue.send_message(test_queue, msg)
     with SessionLocal() as db:
-        db.query(LocalQueueMessage).filter(
-            LocalQueueMessage.queue_name == test_queue
-        ).update({
-            "attempts": 1,
-            "status": "processing",
-            "visible_at": datetime.now(timezone.utc) - timedelta(seconds=1),
-        })
+        db.query(LocalQueueMessage).filter(LocalQueueMessage.queue_name == test_queue).update(
+            {
+                "attempts": 1,
+                "status": "processing",
+                "visible_at": datetime.now(timezone.utc) - timedelta(seconds=1),
+            }
+        )
         db.commit()
 
     # 3. New consumer claims the message
@@ -690,6 +689,162 @@ def test_consumer_recovery_from_abandoned_processing():
             assert recovered_job.started_at == initial_started_at  # Preserved original start time
             assert recovered_job.finished_at is not None
             assert recovered_job.observations_created == 1
+    finally:
+        with SessionLocal() as db:
+            db.query(PriceObservation).filter(PriceObservation.store_product_id == sp_id).delete()
+            db.query(ScrapingJob).filter(ScrapingJob.id == job_id).delete()
+            db.commit()
+
+
+def test_consumer_processes_replayed_job_with_observation_idempotency():
+    """Verify replayed message is processed without duplicating observations or double counting."""
+    import hashlib
+
+    store_id, product_id, sp_id = setup_test_entities()
+    job_id = uuid.uuid4()
+    test_queue = f"test-replayed-queue-{uuid.uuid4().hex[:8]}"
+    queue = PostgresQueue(session_factory=SessionLocal)
+
+    # 1. Simulate pre-existing observation created in prior execution
+    idempotency_key = f"{job_id}:{sp_id}"
+    source_hash = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()
+
+    with SessionLocal() as db:
+        obs = PriceObservation(
+            id=uuid.uuid4(),
+            store_product_id=sp_id,
+            price=Decimal("199.99"),
+            currency="PEN",
+            availability="in_stock",
+            price_condition="cash_or_bank_transfer",
+            source_hash=source_hash,
+            captured_at=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        db.add(obs)
+
+        # 2. Replayed job in queued state with attempts reset and cumulative observations=1
+        replayed_job = ScrapingJob(
+            id=job_id,
+            store_id=store_id,
+            status="queued",
+            trigger_type="manual",
+            batch_size=1,
+            attempts=0,
+            observations_created=1,
+            replay_count=1,
+            replayed_at=datetime.now(timezone.utc),
+            last_dlq_reason="Previous fatal error",
+        )
+        db.add(replayed_job)
+        db.commit()
+
+    # 3. Enqueue replayed message with attempt=1
+    msg = ScrapingMessage(
+        version=1,
+        job_id=job_id,
+        store_id=store_id,
+        product_ids=[product_id],
+        requested_at=datetime.now(timezone.utc),
+        attempt=1,
+    )
+    queue.send_message(test_queue, msg)
+
+    consumer = ScrapingConsumer(
+        queue=queue,
+        service=ScrapingWorkerService(
+            adapter=FakeStoreAdapter(), repository=ObservationRepository()
+        ),
+        session_factory=SessionLocal,
+        queue_name=test_queue,
+        dlq_name=f"{test_queue}-dlq",
+    )
+
+    try:
+        handled = consumer.process_next_message()
+        assert handled is True
+
+        with SessionLocal() as db:
+            stmt = select(ScrapingJob).where(ScrapingJob.id == job_id)
+            job = db.execute(stmt).scalar_one()
+            assert job.status == "completed"
+            assert job.attempts == 1
+            # Cumulative total preserved (no duplicate observation counted)
+            assert job.observations_created == 1
+            assert job.error_reason is None
+
+            # Verify no duplicate PriceObservation inserted
+            stmt_obs = select(PriceObservation).where(PriceObservation.store_product_id == sp_id)
+            all_obs = db.execute(stmt_obs).scalars().all()
+            assert len(all_obs) == 1
+            assert all_obs[0].source_hash == source_hash
+    finally:
+        with SessionLocal() as db:
+            db.query(PriceObservation).filter(PriceObservation.store_product_id == sp_id).delete()
+            db.query(ScrapingJob).filter(ScrapingJob.id == job_id).delete()
+            db.commit()
+
+
+def test_replayed_message_resets_attempt_counter_and_does_not_immediately_dlq():
+    """Demonstrate a replayed message (attempts=0, attempt=1) retries normally
+    instead of immediate DLQ."""
+    store_id, product_id, sp_id = setup_test_entities()
+    job_id = uuid.uuid4()
+    test_queue = f"test-replayed-retry-queue-{uuid.uuid4().hex[:8]}"
+    queue = PostgresQueue(session_factory=SessionLocal)
+
+    with SessionLocal() as db:
+        replayed_job = ScrapingJob(
+            id=job_id,
+            store_id=store_id,
+            status="queued",
+            trigger_type="manual",
+            batch_size=1,
+            attempts=0,
+            replay_count=1,
+            replayed_at=datetime.now(timezone.utc),
+        )
+        db.add(replayed_job)
+        db.commit()
+
+    # Enqueue message with attempt=1 (reset by replay)
+    msg = ScrapingMessage(
+        version=1,
+        job_id=job_id,
+        store_id=store_id,
+        product_ids=[product_id],
+        requested_at=datetime.now(timezone.utc),
+        attempt=1,
+    )
+    queue.send_message(test_queue, msg)
+
+    # Mock adapter to raise a transient error
+    mock_adapter = MagicMock()
+    mock_adapter.fetch_product_price.side_effect = TransientScrapingError(
+        "Temporary network hiccup"
+    )
+
+    consumer = ScrapingConsumer(
+        queue=queue,
+        service=ScrapingWorkerService(adapter=mock_adapter, repository=ObservationRepository()),
+        session_factory=SessionLocal,
+        queue_name=test_queue,
+        dlq_name=f"{test_queue}-dlq",
+        max_retries=3,
+    )
+
+    try:
+        handled = consumer.process_next_message()
+        assert handled is True
+
+        with SessionLocal() as db:
+            stmt = select(ScrapingJob).where(ScrapingJob.id == job_id)
+            job = db.execute(stmt).scalar_one()
+            # Must transition to retrying, NOT dead_letter!
+            assert job.status == "retrying"
+            assert job.attempts == 1
+
+            # DLQ queue must be empty
+            assert queue.get_queue_size(f"{test_queue}-dlq") == 0
     finally:
         with SessionLocal() as db:
             db.query(PriceObservation).filter(PriceObservation.store_product_id == sp_id).delete()

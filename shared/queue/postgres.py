@@ -187,6 +187,7 @@ class PostgresQueue(BaseQueue):
                     row.status = "dlq"
                     row.error_reason = error_reason
                     row.processed_at = func.now()
+                    row.sent_to_dlq_at = func.now()
                     row.receipt_handle = None
                     session.commit()
                     return str(row.id)
@@ -210,6 +211,7 @@ class PostgresQueue(BaseQueue):
                 visible_at=now,
                 created_at=now,
                 processed_at=now,
+                sent_to_dlq_at=now,
             )
             session.add(dlq_msg)
             session.commit()

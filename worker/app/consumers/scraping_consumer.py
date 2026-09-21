@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 
@@ -29,23 +30,36 @@ class InvalidStateTransitionError(Exception):
     pass
 
 
+# Allowed state machine transitions for normal consumer processing.
+# NOTE: Transition 'dead_letter' -> 'queued' is strictly excluded here
+# and is authorized ONLY in the replay service (Subincrement 7C).
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "queued": {"processing"},
-    "processing": {"completed", "retrying", "skipped", "failed", "dead_letter"},
+    "processing": {"completed", "retrying", "skipped", "failed", "dead_letter", "processing"},
     "retrying": {"processing"},
 }
 
 
 def sanitize_error(error: str | Exception | None, max_length: int = 500) -> str | None:
-    """Sanitize and truncate error string to avoid storing unbounded text or secrets."""
+    """Sanitize and truncate error string to avoid storing unbounded text, headers, or secrets."""
     if error is None:
         return None
     text = str(error).strip()
+    # Remove Authorization headers / Bearer tokens
+    text = re.sub(r"(?i)authorization:\s*(?:bearer\s+)?[^\s]+", "[REDACTED_AUTH]", text)
+    text = re.sub(r"(?i)bearer\s+[a-zA-Z0-9_\-\.]+", "[REDACTED_TOKEN]", text)
+    # Remove stack traces
+    text = re.sub(
+        r"(?i)traceback\s*\(most\s+recent\s+call\s+last\):.*",
+        "[TRACEBACK_REDACTED]",
+        text,
+        flags=re.DOTALL,
+    )
     lines = text.splitlines()
     cleaned = " ".join(line.strip() for line in lines if line.strip())
     if len(cleaned) > max_length:
         return cleaned[: max_length - 3] + "..."
-    return cleaned
+    return cleaned or None
 
 
 def transition_job_status(
@@ -74,9 +88,13 @@ def transition_job_status(
             job.started_at = now
     elif target_status in ("completed", "skipped", "failed", "dead_letter"):
         job.finished_at = now
+        if target_status == "dead_letter":
+            job.sent_to_dlq_at = now
+            if error_reason is not None:
+                job.last_dlq_reason = sanitize_error(error_reason)
 
     if observations_created is not None:
-        job.observations_created = observations_created
+        job.observations_created = (job.observations_created or 0) + observations_created
 
     if error_reason is not None:
         job.error_reason = sanitize_error(error_reason)
@@ -143,9 +161,7 @@ class ScrapingConsumer:
         )
 
         with self.session_factory() as db:
-            result = db.execute(
-                select(ScrapingJob).where(ScrapingJob.id == scraping_msg.job_id)
-            )
+            result = db.execute(select(ScrapingJob).where(ScrapingJob.id == scraping_msg.job_id))
             job = result.scalar_one_or_none()
             if not isinstance(job, ScrapingJob):
                 job = None
@@ -186,7 +202,7 @@ class ScrapingConsumer:
                     self.queue.delete_message(self.queue_name, msg.receipt_handle)
                     return True
 
-                is_recovery = (job.status == "processing")
+                is_recovery = job.status == "processing"
                 job.attempts = attempts
                 transition_job_status(job, "processing", is_recovery=is_recovery)
                 db.commit()
@@ -194,9 +210,7 @@ class ScrapingConsumer:
             try:
                 inserted_count = self.service.process_job(db=db, message=scraping_msg)
                 # Successful execution -> transition to completed
-                transition_job_status(
-                    job, "completed", observations_created=inserted_count
-                )
+                transition_job_status(job, "completed", observations_created=inserted_count)
                 job.attempts = attempts
                 job.error_reason = None
                 db.commit()

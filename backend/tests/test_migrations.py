@@ -192,6 +192,45 @@ def test_migration_006_safe_downgrade_and_upgrade():
     assert cols_after_up["dispatch_slot"]["nullable"] is True
 
 
+def test_migration_007_safe_downgrade_and_upgrade():
+    """Verify safe downgrade and upgrade of migration 007 on test database."""
+    import pathlib
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    backend_dir = pathlib.Path(__file__).parent.parent
+    alembic_cfg = Config(str(backend_dir / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+    # Downgrade 007 (007 -> 006)
+    try:
+        command.downgrade(alembic_cfg, "006_dispatch_slot_trigger_type")
+        inspector = inspect(engine)
+        q_cols_down = [col["name"] for col in inspector.get_columns("local_queue_messages")]
+        j_cols_down = [col["name"] for col in inspector.get_columns("scraping_jobs")]
+        assert "sent_to_dlq_at" not in q_cols_down
+        assert "replay_count" not in q_cols_down
+        assert "sent_to_dlq_at" not in j_cols_down
+        assert "last_dlq_reason" not in j_cols_down
+    finally:
+        # Upgrade back to head
+        command.upgrade(alembic_cfg, "head")
+
+    inspector_up = inspect(engine)
+    q_cols_up = {col["name"]: col for col in inspector_up.get_columns("local_queue_messages")}
+    j_cols_up = {col["name"]: col for col in inspector_up.get_columns("scraping_jobs")}
+    assert "sent_to_dlq_at" in q_cols_up
+    assert "replay_count" in q_cols_up
+    assert "replayed_at" in q_cols_up
+    assert "sent_to_dlq_at" in j_cols_up
+    assert "last_dlq_reason" in j_cols_up
+    assert "replay_count" in j_cols_up
+    assert "replayed_at" in j_cols_up
+
+
 def test_seed_idempotency():
     """Verify seed function can be called multiple times without duplicate records or errors."""
     db: Session = SessionLocal()

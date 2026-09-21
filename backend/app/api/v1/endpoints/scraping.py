@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 from app.core.security import verify_internal_api_key
 from app.db.session import get_db
 from app.schemas.scraping import (
+    DLQMessageListResponse,
+    DLQReplayRequest,
+    DLQReplayResponse,
     ManualDispatchRequest,
     ManualDispatchResponse,
     ScrapingJobCreate,
@@ -132,3 +135,51 @@ def trigger_manual_dispatch(
 ) -> ManualDispatchResponse:
     """Trigger manual batch scraping dispatch across active stores."""
     return dispatch_service.dispatch_manual(store_id=payload.store_id)
+
+
+@router.get(
+    "/dlq",
+    response_model=DLQMessageListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Inspeccionar cola de mensajes muertos (DLQ)",
+    description=(
+        "Lista mensajes fallidos en la DLQ con sanitización de contenido, "
+        "paginación y filtros temporales."
+    ),
+)
+def list_dlq_messages(
+    page: int = Query(1, ge=1, description="Número de página"),
+    page_size: int = Query(20, ge=1, le=100, description="Tamaño de página (1 a 100)"),
+    store_id: uuid.UUID | None = Query(default=None, description="Filtro opcional por tienda"),
+    from_date: datetime | None = Query(default=None, description="Fecha de inicio (UTC)"),
+    to_date: datetime | None = Query(default=None, description="Fecha de fin (UTC)"),
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_internal_api_key),
+) -> DLQMessageListResponse:
+    """List and inspect sanitized DLQ messages."""
+    return dispatch_service.list_dlq_messages(
+        db=db,
+        page=page,
+        page_size=page_size,
+        store_id=store_id,
+        from_date=from_date,
+        to_date=to_date,
+    )
+
+
+@router.post(
+    "/dlq/replay",
+    response_model=DLQReplayResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Reproducir transaccionalmente mensajes de la DLQ",
+    description=(
+        "Reencola mensajes de la DLQ hacia la cola activa de scraping con bloqueo "
+        "transaccional, garantizando atomicidad (all-or-nothing) e idempotencia."
+    ),
+)
+def replay_dlq_messages(
+    payload: DLQReplayRequest,
+    _: str = Depends(verify_internal_api_key),
+) -> DLQReplayResponse:
+    """Atomically replay selected messages from DLQ to active queue."""
+    return dispatch_service.replay_dlq_messages(message_ids=payload.message_ids)

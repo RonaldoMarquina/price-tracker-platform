@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, Uuid, func, text
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Text, Uuid, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -27,6 +27,16 @@ class LocalQueueMessage(QueueModelBase):
             "visible_at",
         ),
         Index("ix_local_queue_messages_receipt", "receipt_handle"),
+        Index(
+            "ix_local_queue_messages_dlq_browse",
+            "queue_name",
+            "status",
+            "sent_to_dlq_at",
+        ),
+        CheckConstraint(
+            "replay_count >= 0",
+            name="ck_local_queue_messages_replay_count_non_negative",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -54,10 +64,20 @@ class LocalQueueMessage(QueueModelBase):
     processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    sent_to_dlq_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    replay_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    replayed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     error_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def __repr__(self) -> str:
         return (
             f"<LocalQueueMessage(id='{self.id}', queue='{self.queue_name}', "
-            f"status='{self.status}', attempts={self.attempts})>"
+            f"status='{self.status}', attempts={self.attempts}, "
+            f"replay_count={self.replay_count})>"
         )

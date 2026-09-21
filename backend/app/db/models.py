@@ -98,9 +98,7 @@ class Store(Base):
     store_products: Mapped[list["StoreProduct"]] = relationship(
         "StoreProduct", back_populates="store", cascade="all, delete-orphan"
     )
-    scraping_jobs: Mapped[list["ScrapingJob"]] = relationship(
-        "ScrapingJob", back_populates="store"
-    )
+    scraping_jobs: Mapped[list["ScrapingJob"]] = relationship("ScrapingJob", back_populates="store")
 
     def __repr__(self) -> str:
         return f"<Store(name='{self.name}', domain='{self.domain}')>"
@@ -213,6 +211,7 @@ class ScrapingJob(Base):
             "OR (trigger_type = 'manual' AND dispatch_slot IS NULL)",
             name="ck_scraping_jobs_dispatch_slot_coherence",
         ),
+        CheckConstraint("replay_count >= 0", name="ck_scraping_jobs_replay_count_non_negative"),
         Index("ix_scraping_jobs_created_at_desc", text("created_at DESC")),
         Index(
             "uq_scraping_jobs_store_dispatch_slot",
@@ -247,6 +246,12 @@ class ScrapingJob(Base):
         Integer, default=0, server_default=text("0"), nullable=False
     )
     error_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_to_dlq_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_dlq_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    replay_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    replayed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

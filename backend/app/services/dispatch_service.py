@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from shared.adapters.store_capabilities import is_store_dispatchable
 from shared.queue.base import BaseQueue
+from shared.queue.models import LocalQueueMessage
 from shared.schemas.scraping import ScrapingMessage
 from sqlalchemy import func, select, text
 from sqlalchemy.engine import Engine
@@ -25,6 +26,9 @@ from app.core.queue import get_queue_service
 from app.db.models import Product, ScrapingJob, Store, StoreProduct
 from app.db.session import SessionLocal, engine
 from app.schemas.scraping import (
+    DLQMessageItemResponse,
+    DLQMessageListResponse,
+    DLQReplayResponse,
     ManualDispatchResponse,
     ScrapingJobDetailResponse,
     ScrapingJobListResponse,
@@ -34,14 +38,26 @@ from app.schemas.scraping import (
 logger = logging.getLogger("price-tracker.dispatch")
 
 
-def sanitize_error(msg: str | None, max_len: int = 500) -> str | None:
+def sanitize_error(msg: str | Exception | None, max_len: int = 500) -> str | None:
     """Sanitize and truncate error reason to avoid leaking sensitive internal traces."""
-    if not msg:
+    if msg is None:
         return None
-    cleaned = re.sub(r"\s+", " ", msg).strip()
+    text = str(msg).strip()
+    # Remove Authorization headers / Bearer tokens
+    text = re.sub(r"(?i)authorization:\s*(?:bearer\s+)?[^\s]+", "[REDACTED_AUTH]", text)
+    text = re.sub(r"(?i)bearer\s+[a-zA-Z0-9_\-\.]+", "[REDACTED_TOKEN]", text)
+    # Remove stack traces
+    text = re.sub(
+        r"(?i)traceback\s*\(most\s+recent\s+call\s+last\):.*",
+        "[TRACEBACK_REDACTED]",
+        text,
+        flags=re.DOTALL,
+    )
+    lines = text.splitlines()
+    cleaned = " ".join(line.strip() for line in lines if line.strip())
     if len(cleaned) > max_len:
-        return cleaned[:max_len] + "..."
-    return cleaned
+        return cleaned[: max_len - 3] + "..."
+    return cleaned or None
 
 
 @dataclass
@@ -116,7 +132,9 @@ class DispatchService:
             # 3. Query active candidate stores
             with self.session_factory() as db:
                 candidate_stores = (
-                    db.execute(select(Store).where(Store.is_active.is_(True)).order_by(Store.name.asc()))
+                    db.execute(
+                        select(Store).where(Store.is_active.is_(True)).order_by(Store.name.asc())
+                    )
                     .scalars()
                     .all()
                 )
@@ -292,7 +310,7 @@ class DispatchService:
 
                     if not target_store.is_active:
                         raise HTTPException(
-                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"La tienda '{target_store.name}' está desactivada.",
                         )
 
@@ -301,7 +319,7 @@ class DispatchService:
                     )
                     if not is_disp:
                         raise HTTPException(
-                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=(
                                 f"La tienda '{target_store.name}' no tiene un adaptador "
                                 f"habilitado ({reason})."
@@ -312,7 +330,9 @@ class DispatchService:
                 else:
                     candidate_stores = (
                         db.execute(
-                            select(Store).where(Store.is_active.is_(True)).order_by(Store.name.asc())
+                            select(Store)
+                            .where(Store.is_active.is_(True))
+                            .order_by(Store.name.asc())
                         )
                         .scalars()
                         .all()
@@ -328,9 +348,7 @@ class DispatchService:
                     store.domain, allow_offline=allow_offline_adapters
                 )
                 if not is_disp:
-                    logger.info(
-                        "Store '%s' skipped in manual dispatch: %s", store.name, reason
-                    )
+                    logger.info("Store '%s' skipped in manual dispatch: %s", store.name, reason)
                     skipped_stores.append(store.id)
                     continue
 
@@ -427,13 +445,12 @@ class DispatchService:
         """List scraping jobs with pagination, filtering, and deterministic sorting."""
         if from_date is not None and to_date is not None and from_date > to_date:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="'from_date' cannot be later than 'to_date'.",
             )
 
-        query = (
-            select(ScrapingJob, Store.name.label("store_name"))
-            .join(Store, ScrapingJob.store_id == Store.id)
+        query = select(ScrapingJob, Store.name.label("store_name")).join(
+            Store, ScrapingJob.store_id == Store.id
         )
 
         if status_filter:
@@ -624,6 +641,350 @@ class DispatchService:
             average_duration_seconds=avg_duration_sec,
             total_observations_created=total_obs,
         )
+
+    def list_dlq_messages(
+        self,
+        db: Session,
+        page: int = 1,
+        page_size: int = 20,
+        store_id: uuid.UUID | None = None,
+        from_date: datetime | None = None,
+        to_date: datetime | None = None,
+    ) -> DLQMessageListResponse:
+        """List and inspect sanitized DLQ messages."""
+        if from_date and to_date:
+            if from_date.tzinfo is None:
+                from_date = from_date.replace(tzinfo=timezone.utc)
+            if to_date.tzinfo is None:
+                to_date = to_date.replace(tzinfo=timezone.utc)
+            if from_date > to_date:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Rango de fechas inválido: from_date debe ser menor o igual a to_date.",
+                )
+
+        effective_date = func.coalesce(
+            LocalQueueMessage.sent_to_dlq_at,
+            LocalQueueMessage.processed_at,
+            LocalQueueMessage.created_at,
+        )
+
+        base_query = select(LocalQueueMessage).where(
+            LocalQueueMessage.queue_name == "scraping-jobs-dlq",
+            LocalQueueMessage.status == "dlq",
+        )
+
+        if store_id:
+            base_query = base_query.where(
+                LocalQueueMessage.payload["store_id"].astext == str(store_id)
+            )
+
+        if from_date:
+            if from_date.tzinfo is None:
+                from_date = from_date.replace(tzinfo=timezone.utc)
+            base_query = base_query.where(effective_date >= from_date)
+
+        if to_date:
+            if to_date.tzinfo is None:
+                to_date = to_date.replace(tzinfo=timezone.utc)
+            base_query = base_query.where(effective_date <= to_date)
+
+        count_stmt = select(func.count()).select_from(base_query.subquery())
+        total = db.execute(count_stmt).scalar_one()
+
+        total_pages = math.ceil(total / page_size) if total > 0 else 0
+        offset = (page - 1) * page_size
+
+        data_stmt = (
+            base_query.order_by(effective_date.desc(), LocalQueueMessage.id.desc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        messages = db.execute(data_stmt).scalars().all()
+
+        items: list[DLQMessageItemResponse] = []
+        for msg in messages:
+            payload = msg.payload
+            job_uuid: uuid.UUID | None = None
+            store_uuid: uuid.UUID | None = None
+            products_count = 0
+            replayable = True
+            block_reason: str | None = None
+
+            if not isinstance(payload, dict):
+                replayable = False
+                block_reason = "INVALID_DLQ_PAYLOAD: Not a JSON object"
+            else:
+                raw_job_id = payload.get("job_id")
+                if raw_job_id:
+                    try:
+                        job_uuid = uuid.UUID(str(raw_job_id))
+                    except ValueError:
+                        job_uuid = None
+                        replayable = False
+                        block_reason = "INVALID_DLQ_PAYLOAD: Invalid job_id"
+                else:
+                    replayable = False
+                    block_reason = "INVALID_DLQ_PAYLOAD: Missing job_id"
+
+                raw_store_id = payload.get("store_id")
+                if raw_store_id:
+                    try:
+                        store_uuid = uuid.UUID(str(raw_store_id))
+                    except ValueError:
+                        store_uuid = None
+                        replayable = False
+                        if not block_reason:
+                            block_reason = "INVALID_DLQ_PAYLOAD: Invalid store_id"
+                else:
+                    replayable = False
+                    if not block_reason:
+                        block_reason = "INVALID_DLQ_PAYLOAD: Missing store_id"
+
+                p_ids = payload.get("product_ids")
+                if isinstance(p_ids, list):
+                    products_count = len(p_ids)
+                else:
+                    replayable = False
+                    if not block_reason:
+                        block_reason = "INVALID_DLQ_PAYLOAD: Invalid or missing product_ids"
+
+            store_name: str | None = None
+            if store_uuid:
+                st = db.execute(select(Store).where(Store.id == store_uuid)).scalar_one_or_none()
+                if st:
+                    store_name = st.name
+
+            if replayable and job_uuid:
+                job = db.execute(
+                    select(ScrapingJob).where(ScrapingJob.id == job_uuid)
+                ).scalar_one_or_none()
+                if not job:
+                    replayable = False
+                    block_reason = "SCRAPING_JOB_NOT_FOUND"
+                elif job.status != "dead_letter":
+                    replayable = False
+                    block_reason = f"JOB_STATUS_NOT_REPLAYABLE: {job.status}"
+
+            sent_at = msg.sent_to_dlq_at or msg.processed_at or msg.created_at
+
+            items.append(
+                DLQMessageItemResponse(
+                    message_id=msg.id,
+                    job_id=job_uuid,
+                    store_id=store_uuid,
+                    store_name=store_name,
+                    products_count=products_count,
+                    attempts=msg.attempts,
+                    error_reason=sanitize_error(msg.error_reason),
+                    created_at=msg.created_at,
+                    sent_to_dlq_at=sent_at,
+                    replay_count=msg.replay_count or 0,
+                    replayed_at=msg.replayed_at,
+                    replayable=replayable,
+                    replay_block_reason=sanitize_error(block_reason),
+                )
+            )
+
+        return DLQMessageListResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )
+
+    def replay_dlq_messages(
+        self,
+        message_ids: list[uuid.UUID],
+    ) -> DLQReplayResponse:
+        """Atomically replay a batch of messages from DLQ back to active queue."""
+        if not message_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="La lista de message_ids no puede estar vacía.",
+            )
+        if len(message_ids) > 50:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="No se pueden reproducir más de 50 mensajes por lote.",
+            )
+        if len(message_ids) != len(set(message_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="message_ids no puede contener identificadores duplicados.",
+            )
+
+        sorted_ids = sorted(message_ids)
+        now_utc = datetime.now(timezone.utc)
+
+        with self.session_factory() as db:
+            try:
+                # 1. Lock messages in deterministic ascending SQL order
+                stmt_msgs = (
+                    select(LocalQueueMessage)
+                    .where(LocalQueueMessage.id.in_(sorted_ids))
+                    .order_by(LocalQueueMessage.id.asc())
+                    .with_for_update()
+                )
+                locked_msgs = db.execute(stmt_msgs).scalars().all()
+
+                found_ids = {m.id for m in locked_msgs}
+                missing_ids = set(sorted_ids) - found_ids
+                if missing_ids:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=(
+                            "Uno o más mensajes no existen: "
+                            f"{[str(i) for i in sorted(missing_ids)]}"
+                        ),
+                    )
+
+                # Validate each message is in DLQ and has valid payload
+                job_id_by_msg: dict[uuid.UUID, uuid.UUID] = {}
+                for m in locked_msgs:
+                    if m.queue_name != "scraping-jobs-dlq" or m.status != "dlq":
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=(
+                                f"El mensaje {m.id} no se encuentra actualmente en la DLQ "
+                                f"(queue='{m.queue_name}', status='{m.status}')."
+                            ),
+                        )
+
+                    payload = m.payload
+                    if not isinstance(payload, dict):
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=f"El mensaje {m.id} tiene un payload malformado (no es dict).",
+                        )
+
+                    raw_job_id = payload.get("job_id")
+                    if not raw_job_id:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=f"El mensaje {m.id} tiene un payload malformado (falta job_id).",
+                        )
+                    try:
+                        job_uuid = uuid.UUID(str(raw_job_id))
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=f"El mensaje {m.id} tiene un job_id inválido en el payload.",
+                        )
+
+                    raw_store_id = payload.get("store_id")
+                    if not raw_store_id:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=f"El mensaje {m.id} tiene un store_id ausente en el payload.",
+                        )
+                    try:
+                        uuid.UUID(str(raw_store_id))
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=f"El mensaje {m.id} tiene un store_id inválido en el payload.",
+                        )
+
+                    p_ids = payload.get("product_ids")
+                    if not isinstance(p_ids, list):
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=(
+                                f"El mensaje {m.id} tiene product_ids ausente o inválido "
+                                "en el payload."
+                            ),
+                        )
+
+                    job_id_by_msg[m.id] = job_uuid
+
+                # 2. Lock related ScrapingJobs in deterministic ascending SQL order
+                sorted_job_ids = sorted(set(job_id_by_msg.values()))
+                stmt_jobs = (
+                    select(ScrapingJob)
+                    .where(ScrapingJob.id.in_(sorted_job_ids))
+                    .order_by(ScrapingJob.id.asc())
+                    .with_for_update()
+                )
+                locked_jobs = {j.id: j for j in db.execute(stmt_jobs).scalars().all()}
+
+                for msg_id, job_uuid in job_id_by_msg.items():
+                    job = locked_jobs.get(job_uuid)
+                    if not job:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=(
+                                f"El ScrapingJob {job_uuid} correspondiente al mensaje {msg_id} "
+                                "no existe."
+                            ),
+                        )
+                    if job.status != "dead_letter":
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=(
+                                f"El ScrapingJob {job_uuid} correspondiente al mensaje {msg_id} "
+                                f"no está en estado reproducible (actual: '{job.status}', "
+                                "esperado: 'dead_letter')."
+                            ),
+                        )
+
+                # 3. Apply updates atomically
+                replayed_msg_ids: list[uuid.UUID] = []
+                replayed_job_ids: list[uuid.UUID] = []
+
+                for m in locked_msgs:
+                    job = locked_jobs[job_id_by_msg[m.id]]
+
+                    # Move message back to active queue
+                    m.queue_name = "scraping-jobs"
+                    m.status = "pending"
+                    m.attempts = 0
+                    m.visible_at = now_utc
+                    m.receipt_handle = None
+                    m.replay_count = (m.replay_count or 0) + 1
+                    m.replayed_at = now_utc
+
+                    new_payload = dict(m.payload)
+                    new_payload["attempt"] = 1
+                    m.payload = new_payload
+
+                    # Update ScrapingJob
+                    if job.error_reason:
+                        job.last_dlq_reason = sanitize_error(job.error_reason)
+                    job.status = "queued"
+                    job.replay_count = (job.replay_count or 0) + 1
+                    job.replayed_at = now_utc
+                    job.attempts = 0
+                    job.started_at = None
+                    job.finished_at = None
+                    job.error_reason = None
+                    # observations_created is preserved as cumulative total
+
+                    replayed_msg_ids.append(m.id)
+                    if job.id not in replayed_job_ids:
+                        replayed_job_ids.append(job.id)
+
+                db.commit()
+
+                logger.info(
+                    "DLQ_REPLAY_SUCCESS: count=%d message_ids=%s job_ids=%s",
+                    len(replayed_msg_ids),
+                    [str(i) for i in replayed_msg_ids],
+                    [str(i) for i in replayed_job_ids],
+                )
+
+                return DLQReplayResponse(
+                    replayed_count=len(replayed_msg_ids),
+                    message_ids=replayed_msg_ids,
+                    job_ids=replayed_job_ids,
+                    status="accepted",
+                )
+
+            except Exception as exc:
+                db.rollback()
+                logger.error("DLQ replay transaction rolled back: %s", sanitize_error(str(exc)))
+                raise
 
 
 dispatch_service = DispatchService()
