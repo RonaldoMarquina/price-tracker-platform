@@ -249,3 +249,70 @@ class DlqIndexerService:
             processed_count += 1
 
         return processed_count
+
+
+_running = True
+
+
+def _handle_exit_signal(sig: int, frame: object) -> None:
+    global _running
+    logger.info("Termination signal %s received. Stopping DLQ indexer loop...", sig)
+    _running = False
+
+
+def main() -> None:
+    """DLQ indexer daemon process."""
+    import os
+    import signal
+    import sys
+    import time
+
+    from shared.queue.sqs import SqsQueue
+
+    from app.db.session import SessionLocal
+
+    signal.signal(signal.SIGINT, _handle_exit_signal)
+    signal.signal(signal.SIGTERM, _handle_exit_signal)
+
+    dlq_name = os.getenv("DLQ_NAME", "scraping-jobs-dlq")
+    poll_interval = float(os.getenv("DLQ_POLL_INTERVAL", "5.0"))
+    empty_interval = float(os.getenv("DLQ_EMPTY_INTERVAL", "15.0"))
+
+    sqs_service = SqsQueue()
+    indexer = DlqIndexerService(
+        session_factory=SessionLocal,
+        sqs_queue_service=sqs_service,
+        dlq_name=dlq_name,
+    )
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+    logger.info("DLQ indexer started (dlq_name=%s).", dlq_name)
+
+    def _sleep(duration: float) -> None:
+        elapsed = 0.0
+        while _running and elapsed < duration:
+            step = min(0.2, duration - elapsed)
+            time.sleep(step)
+            elapsed += step
+
+    while _running:
+        try:
+            processed = indexer.process_cycle(max_messages=10)
+            if processed > 0:
+                logger.info("DLQ indexer processed %d messages.", processed)
+                _sleep(poll_interval)
+            else:
+                _sleep(empty_interval)
+        except Exception as exc:
+            logger.exception("Error in DLQ indexer loop: %s", exc)
+            _sleep(empty_interval)
+
+    logger.info("DLQ indexer process stopped cleanly.")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

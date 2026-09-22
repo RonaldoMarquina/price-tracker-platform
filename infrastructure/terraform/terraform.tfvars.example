@@ -1,0 +1,25 @@
+# ==============================================================================
+# Price Tracker Platform - Terraform Variables Example
+# ==============================================================================
+# Copy this file to terraform.tfvars for local experimentation.
+# DO NOT commit real secrets, passwords, or production keys.
+
+project     = "price-tracker"
+environment = "demo"
+aws_region  = "us-east-1"
+vpc_cidr    = "10.0.0.0/16"
+
+# Database Configuration
+db_username = "postgres"
+db_name     = "price_tracker"
+
+# Immutable Container Images (commit SHA tags)
+backend_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/price-tracker-backend:sha-6ddb0d3"
+worker_image_uri  = "123456789012.dkr.ecr.us-east-1.amazonaws.com/price-tracker-worker:sha-6ddb0d3"
+
+# Unique bucket suffix (customize to avoid S3 naming collisions)
+bucket_suffix = "academic-demo-2026"
+
+# NOTE: For the sensitive header secret 'x_origin_verify_secret',
+# supply via environment variable TF_VAR_x_origin_verify_secret or in a local, unversioned file:
+# x_origin_verify_secret = "your-custom-secure-origin-secret-32chars"

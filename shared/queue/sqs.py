@@ -20,14 +20,25 @@ class SqsQueue(BaseQueue):
         self,
         client: Any | None = None,
         queue_url_map: dict[str, str] | None = None,
-        region_name: str = "us-east-1",
+        region_name: str | None = None,
     ) -> None:
-        self.region_name = region_name
+        import os
+
+        self.region_name = region_name or os.getenv("AWS_REGION", "us-east-1")
         self.client = client or boto3.client("sqs", region_name=self.region_name)
-        self._queue_url_map = queue_url_map or {}
+        mapping: dict[str, str] = {}
+        if os.getenv("SCRAPING_QUEUE_URL"):
+            mapping["scraping-jobs"] = os.environ["SCRAPING_QUEUE_URL"]
+        if os.getenv("SCRAPING_DLQ_URL"):
+            mapping["scraping-jobs-dlq"] = os.environ["SCRAPING_DLQ_URL"]
+        if queue_url_map:
+            mapping.update(queue_url_map)
+        self._queue_url_map = mapping
 
     def get_queue_url(self, queue_name: str) -> str:
-        """Resolve queue URL from cache or SQS API."""
+        """Resolve queue URL from direct URL, environment cache, or SQS API."""
+        if queue_name.startswith("http://") or queue_name.startswith("https://"):
+            return queue_name
         if queue_name in self._queue_url_map:
             return self._queue_url_map[queue_name]
         try:

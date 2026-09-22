@@ -13,13 +13,15 @@ from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.middleware import RequestIDMiddleware
 
+_docs_enabled = settings.DOCS_ENABLED and settings.ENVIRONMENT.lower() not in ("production", "prod")
+
 app = FastAPI(
     title="Price Tracker Platform API",
     description="API REST para consultar el catálogo e historial de precios de componentes de PC.",
     version="0.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
 )
 
 origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]

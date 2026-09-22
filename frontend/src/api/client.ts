@@ -1,8 +1,7 @@
 import { ApiErrorResponse } from "../types/api";
 
-const BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ||
-  "http://localhost:8000/api/v1";
+const envApiUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
+const BASE_URL = envApiUrl ?? (import.meta.env.DEV ? "http://localhost:8000/api/v1" : "/api/v1");
 
 export class ApiError extends Error {
   statusCode: number;

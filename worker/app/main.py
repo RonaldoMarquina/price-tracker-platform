@@ -5,7 +5,9 @@ import os
 import signal
 import time
 
+from shared.queue.base import BaseQueue
 from shared.queue.postgres import PostgresQueue
+from shared.queue.sqs import SqsQueue
 
 from app.adapters.registry import AdapterRegistry
 from app.consumers.scraping_consumer import ScrapingConsumer
@@ -40,7 +42,12 @@ def get_worker_status() -> dict[str, str]:
 
 def create_consumer() -> ScrapingConsumer:
     """Instantiate a fully-wired ScrapingConsumer."""
-    queue = PostgresQueue(session_factory=SessionLocal)
+    backend = os.getenv("QUEUE_BACKEND", "postgres").lower()
+    queue: BaseQueue
+    if backend == "sqs":
+        queue = SqsQueue()
+    else:
+        queue = PostgresQueue(session_factory=SessionLocal)
     registry = AdapterRegistry()
     repo = ObservationRepository()
     service = ScrapingWorkerService(registry=registry, repository=repo)

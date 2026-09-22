@@ -3,6 +3,7 @@
 import logging
 import os
 import signal
+import sys
 import time
 
 from app.db.session import SessionLocal, engine
@@ -24,9 +25,26 @@ def _handle_exit_signal(sig: int, frame: object) -> None:
 
 
 def main() -> None:
-    """Scheduled dispatcher lifecycle loop."""
+    """Scheduled dispatcher lifecycle loop with optional single-run mode (--once)."""
     signal.signal(signal.SIGINT, _handle_exit_signal)
     signal.signal(signal.SIGTERM, _handle_exit_signal)
+
+    service = DispatchService(db_engine=engine, session_factory=SessionLocal)
+
+    # One-shot mode for EventBridge Scheduler task execution
+    is_once = "--once" in sys.argv or os.getenv("DISPATCH_MODE", "").strip().lower() == "once"
+    if is_once:
+        logger.info("Running single scheduled dispatch slot (--once)...")
+        result = service.run_once()
+        if result.skipped_lock:
+            logger.info("Single dispatch skipped: another instance held the advisory lock.")
+        else:
+            logger.info(
+                "Single dispatch completed: %d jobs created, %d products total.",
+                result.jobs_created,
+                result.total_products,
+            )
+        return
 
     enabled_str = os.getenv("DISPATCHER_ENABLED", "false").strip().lower()
     enabled = enabled_str in ("true", "1", "yes")
@@ -44,8 +62,6 @@ def main() -> None:
         interval_seconds,
         os.getenv("ENVIRONMENT", "development"),
     )
-
-    service = DispatchService(db_engine=engine, session_factory=SessionLocal)
 
     while _running:
         try:

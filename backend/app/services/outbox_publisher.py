@@ -237,7 +237,9 @@ class OutboxPublisherService:
             "exhausted": exhausted_count,
         }
 
-    def process_cycle(self, queue_name: str, batch_size: int = OUTBOX_BATCH_SIZE) -> dict[str, int]:
+    def process_cycle(
+        self, queue_name: str, batch_size: int = OUTBOX_BATCH_SIZE
+    ) -> dict[str, int]:
         """Execute a full 3-phase cycle."""
         claimed = self.claim_batch(batch_size=batch_size)
         if not claimed:
@@ -247,3 +249,76 @@ class OutboxPublisherService:
         results = self.finalize_batch(claimed, sqs_resp)
         results["claimed"] = len(claimed)
         return results
+
+
+_running = True
+
+
+def _handle_exit_signal(sig: int, frame: object) -> None:
+    global _running
+    logger.info("Termination signal %s received. Stopping outbox publisher loop...", sig)
+    _running = False
+
+
+def main() -> None:
+    """Outbox publisher daemon process."""
+    import os
+    import signal
+    import sys
+    import time
+
+    from app.core.queue import get_queue_service
+    from app.db.session import SessionLocal
+
+    signal.signal(signal.SIGINT, _handle_exit_signal)
+    signal.signal(signal.SIGTERM, _handle_exit_signal)
+
+    queue_name = os.getenv("QUEUE_NAME", "scraping-jobs")
+    poll_interval = float(os.getenv("OUTBOX_POLL_INTERVAL", "2.0"))
+    empty_interval = float(os.getenv("OUTBOX_EMPTY_INTERVAL", "5.0"))
+    publisher_id = f"publisher-{os.uname().nodename}-{os.getpid()}"
+
+    queue_service = get_queue_service()
+    publisher = OutboxPublisherService(
+        session_factory=SessionLocal,
+        sqs_queue_service=queue_service,
+        publisher_id=publisher_id,
+    )
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+    logger.info("Outbox publisher started (id=%s, queue=%s).", publisher_id, queue_name)
+
+    def _sleep(duration: float) -> None:
+        elapsed = 0.0
+        while _running and elapsed < duration:
+            step = min(0.2, duration - elapsed)
+            time.sleep(step)
+            elapsed += step
+
+    while _running:
+        try:
+            stats = publisher.process_cycle(queue_name=queue_name)
+            if stats["claimed"] > 0:
+                logger.info(
+                    "Outbox cycle: claimed=%d published=%d failed=%d exhausted=%d",
+                    stats["claimed"],
+                    stats["published"],
+                    stats["failed"],
+                    stats["exhausted"],
+                )
+                _sleep(poll_interval)
+            else:
+                _sleep(empty_interval)
+        except Exception as exc:
+            logger.exception("Error in outbox publisher loop: %s", exc)
+            _sleep(empty_interval)
+
+    logger.info("Outbox publisher process stopped cleanly.")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

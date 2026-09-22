@@ -703,3 +703,46 @@ def test_worker_lease_recovery_after_crash():
         j = db.get(ScrapingJob, job_id)
         assert j.status == "completed"
         assert j.attempts == 2
+
+
+def test_dlq_indexer_startup_and_sigterm_handling_offline():
+    """Requirement: DLQ indexer must run offline with Stubber and handle SIGTERM cleanly."""
+    import signal
+
+    import boto3
+    from botocore.stub import Stubber
+    from shared.queue.sqs import SqsQueue
+
+    import app.services.dlq_indexer as dlq_module
+
+    sqs_client = boto3.client(
+        "sqs",
+        region_name="us-east-1",
+        aws_access_key_id="offline-mock",
+        aws_secret_access_key="offline-mock",
+    )
+    stubber = Stubber(sqs_client)
+    stubber.add_response("receive_message", {"Messages": []})
+    stubber.activate()
+
+    dlq_url = "https://sqs.us-east-1.amazonaws.com/123456789012/test-dlq"
+    queue_service = SqsQueue(
+        client=sqs_client,
+        queue_url_map={"scraping-jobs-dlq": dlq_url},
+    )
+
+    indexer = DlqIndexerService(
+        session_factory=SessionLocal,
+        sqs_queue_service=queue_service,
+        dlq_name="scraping-jobs-dlq",
+    )
+
+    # 1. Verify cycle completes with 0 external network/DNS resolution
+    processed = indexer.process_cycle(max_messages=10)
+    assert processed == 0
+
+    # 2. Verify signal handler stops the loop cleanly
+    dlq_module._running = True
+    dlq_module._handle_exit_signal(signal.SIGTERM, None)
+    assert dlq_module._running is False
+    dlq_module._running = True
