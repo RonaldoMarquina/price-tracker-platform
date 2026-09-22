@@ -8,8 +8,14 @@ terraform {
     }
   }
 
-  # Local backend configured for Subincrement 8C offline validation
-  backend "local" {}
+  # Remote S3 backend with native conditional write locking (Terraform >= 1.10)
+  # The S3 bucket name is injected dynamically via 'terraform init -backend-config="bucket=..."'
+  backend "s3" {
+    key          = "price-tracker/demo/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 }
 
 provider "aws" {

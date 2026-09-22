@@ -42,7 +42,6 @@ variable "db_name" {
 variable "backend_image_uri" {
   description = "Immutable ECR container image URI for backend, outbox publisher, and dispatcher"
   type        = string
-  default     = "123456789012.dkr.ecr.us-east-1.amazonaws.com/price-tracker-backend:sha-6ddb0d3"
 
   validation {
     condition     = !endswith(var.backend_image_uri, ":latest")
@@ -53,7 +52,6 @@ variable "backend_image_uri" {
 variable "worker_image_uri" {
   description = "Immutable ECR container image URI for scraping worker and DLQ indexer"
   type        = string
-  default     = "123456789012.dkr.ecr.us-east-1.amazonaws.com/price-tracker-worker:sha-6ddb0d3"
 
   validation {
     condition     = !endswith(var.worker_image_uri, ":latest")
@@ -82,5 +80,4 @@ variable "bucket_suffix" {
 variable "internal_api_key_secret_arn" {
   description = "ARN of the AWS Secrets Manager secret storing the internal API key"
   type        = string
-  default     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:price-tracker/internal-api-key-demo"
 }
