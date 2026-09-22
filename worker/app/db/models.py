@@ -49,6 +49,7 @@ class Product(Base):
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(120), nullable=True)
     mpn: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
@@ -73,6 +74,7 @@ class StoreProduct(Base):
     store_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     external_sku: Mapped[str | None] = mapped_column(String(150), nullable=True)
     product_url: Mapped[str] = mapped_column(Text, nullable=False)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 

@@ -267,6 +267,39 @@ def test_migration_008_safe_downgrade_and_upgrade():
     assert "payload" in j_cols_up
 
 
+def test_migration_009_safe_downgrade_and_upgrade():
+    """Verify safe downgrade and upgrade of migration 009 on test database.
+
+    Downgrade drops image_url column from store_products table.
+    Upgrade head restores image_url column as nullable.
+    """
+    import pathlib
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    backend_dir = pathlib.Path(__file__).parent.parent
+    alembic_cfg = Config(str(backend_dir / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+    # Downgrade 009 (009 -> 008)
+    try:
+        command.downgrade(alembic_cfg, "008_outbox_and_dlq_ledger")
+        inspector = inspect(engine)
+        sp_cols_down = [col["name"] for col in inspector.get_columns("store_products")]
+        assert "image_url" not in sp_cols_down
+    finally:
+        # Upgrade back to head
+        command.upgrade(alembic_cfg, "head")
+
+    inspector_up = inspect(engine)
+    sp_cols_up = {col["name"]: col for col in inspector_up.get_columns("store_products")}
+    assert "image_url" in sp_cols_up
+    assert sp_cols_up["image_url"]["nullable"] is True
+
+
 def test_seed_idempotency():
     """Verify seed function can be called multiple times without duplicate records or errors."""
     db: Session = SessionLocal()

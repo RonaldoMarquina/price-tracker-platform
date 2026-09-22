@@ -19,7 +19,8 @@ router = APIRouter(prefix="/products", tags=["Products"])
     response_model=ProductListResponse,
     summary="Listar productos del catálogo",
     description=(
-        "Obtiene un listado paginado de productos con filtros opcionales de nombre y categoría."
+        "Obtiene un listado paginado de productos con filtros opcionales de nombre y categoría. "
+        "Por defecto solo incluye productos con al menos una oferta activa en stock."
     ),
 )
 def list_products(
@@ -27,6 +28,11 @@ def list_products(
     category: str | None = Query(None, description="Filtrar por slug de categoría", max_length=100),
     page: int = Query(1, ge=1, description="Número de página"),
     page_size: int = Query(20, ge=1, le=100, description="Cantidad de productos por página"),
+    with_offers_only: bool = Query(
+        True,
+        alias="with_offers_only",
+        description="Si es true, oculta productos sin oferta activa en stock (default: true)",
+    ),
     db: Session = Depends(get_db),
 ) -> ProductListResponse:
     """Retrieve paginated products catalog."""
@@ -36,6 +42,7 @@ def list_products(
         category=category,
         page=page,
         page_size=page_size,
+        with_offers_only=with_offers_only,
     )
 
 

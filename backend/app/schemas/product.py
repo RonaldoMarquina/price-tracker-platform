@@ -47,6 +47,12 @@ class ProductListItemOut(BaseModel):
     latest_price: LatestPriceOut | None = Field(
         None, description="Última observación de precio (obsoleto: use best_price)"
     )
+    active_offers_count: int = Field(
+        0, description="Cantidad de tiendas activas con oferta en stock"
+    )
+    has_multiple_offers: bool = Field(
+        False, description="Indica si existen 2 o más ofertas activas para comparar"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -84,6 +90,7 @@ class ProductStoreOut(BaseModel):
     store_id: uuid.UUID
     store_name: str
     product_url: str
+    image_url: str | None = Field(None, description="URL de la imagen del producto en la tienda")
     external_sku: str | None = None
     is_store_active: bool = Field(True, description="Estado de activación de la tienda")
     latest_price: StoreProductPriceOut | None = None
@@ -105,6 +112,12 @@ class ProductDetailOut(BaseModel):
     updated_at: datetime
     best_price: BestPriceOut | None = Field(
         None, description="Mejor oferta actual activa y disponible"
+    )
+    active_offers_count: int = Field(
+        0, description="Cantidad de tiendas activas con oferta en stock"
+    )
+    has_multiple_offers: bool = Field(
+        False, description="Indica si existen 2 o más ofertas activas para comparar"
     )
     stores: list[ProductStoreOut] = Field(default_factory=list)
 

@@ -37,14 +37,21 @@ class ProductService:
         category: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        with_offers_only: bool = True,
     ) -> ProductListResponse:
-        """List active products with pagination, search, and category filter."""
+        """List active products with pagination, search, and category filter.
+
+        By default only products with at least one active in-stock offer are returned.
+        Pass with_offers_only=False to include products without current offers (e.g.
+        direct URL access or internal admin views).
+        """
         products, total = self.repo.get_paginated(
             db=db,
             q=q,
             category_slug=category,
             page=page,
             page_size=page_size,
+            with_offers_only=with_offers_only,
         )
 
         items: list[ProductListItemOut] = []
@@ -71,6 +78,9 @@ class ProductService:
                     captured_at=best_record.captured_at,
                 )
 
+            active_offers_count = self.repo.get_active_offers_count(db, prod.id)
+            has_multiple_offers = active_offers_count >= 2
+
             items.append(
                 ProductListItemOut(
                     id=prod.id,
@@ -81,6 +91,8 @@ class ProductService:
                     image_url=prod.image_url,
                     best_price=best_price,
                     latest_price=latest_price,
+                    active_offers_count=active_offers_count,
+                    has_multiple_offers=has_multiple_offers,
                 )
             )
 
@@ -120,6 +132,7 @@ class ProductService:
                     store_id=sp.store.id,
                     store_name=sp.store.name,
                     product_url=sp.product_url,
+                    image_url=sp.image_url,
                     external_sku=sp.external_sku,
                     is_store_active=sp.store.is_active,
                     latest_price=store_price_out,
@@ -137,6 +150,9 @@ class ProductService:
                 price_condition=best_record.price_condition,
                 captured_at=best_record.captured_at,
             )
+
+        active_offers_count = self.repo.get_active_offers_count(db, product.id)
+        has_multiple_offers = active_offers_count >= 2
 
         category_out = CategoryOut(
             id=product.category.id,
@@ -157,6 +173,8 @@ class ProductService:
             created_at=product.created_at,
             updated_at=product.updated_at,
             best_price=best_price,
+            active_offers_count=active_offers_count,
+            has_multiple_offers=has_multiple_offers,
             stores=store_outs,
         )
 

@@ -230,7 +230,52 @@ def seed_canonical_catalog(
             "brand": "Kingston",
             "model": "Fury Beast RGB DDR5",
             "mpn": "KF552C40BBA-32",
-            "image_url": "https://computershopperu.com/131062-thickbox_default/memoria-32gb-ddr5-kingston-fury-beast-rgb-black-bus-5200mhz-pnkf552c40bba-32.jpg",
+            "image_url": "https://computershopperu.com/695-large_default/memoria-32gb-ddr5-kingston-fury-beast-rgb-black-bus-5200mhz-pnkf552c40bba-32.jpg",
+        },
+        {
+            "name": "Tarjeta de Video MSI Radeon RX 6600 XT Mech 2X 8GB",
+            "slug": "msi-radeon-rx-6600-xt-8gb",
+            "category_slug": "tarjetas-de-video",
+            "brand": "MSI",
+            "model": "Radeon RX 6600 XT Mech 2X",
+            "mpn": "RX 6600 XT MECH 2X 8G OC",
+            "image_url": "https://necs.pe/uploads/img/1781130627_MSI%206600XT.webp",
+        },
+        {
+            "name": "Fuente de Poder ASRock Pro 650G 650W 80 Plus Gold",
+            "slug": "asrock-pro-650g-650w-80-plus-gold",
+            "category_slug": "fuentes-de-poder",
+            "brand": "ASRock",
+            "model": "Pro 650G",
+            "mpn": "PRO 650G",
+            "image_url": "https://necs.pe/uploads/img/1787347665_ASROCK_650W_73b5a0.webp",
+        },
+        {
+            "name": 'Disco Sólido MSI Spatium S270 240GB SATA 2.5"',
+            "slug": "msi-spatium-s270-240gb-sata",
+            "category_slug": "almacenamiento",
+            "brand": "MSI",
+            "model": "Spatium S270",
+            "mpn": "S270-240GB",
+            "image_url": "https://necs.pe/uploads/img/1788194239_msi_spatium_270_28c44c.webp",
+        },
+        {
+            "name": 'Monitor TEROS TE-3218G 31.5" 2K QHD 180Hz 1ms',
+            "slug": "teros-te-3218g-315-2k-180hz",
+            "category_slug": "monitores",
+            "brand": "TEROS",
+            "model": "TE-3218G",
+            "mpn": "TE-3218G",
+            "image_url": "https://necs.pe/uploads/img/1783990113_TEROS_DE_315_2f2cc1.webp",
+        },
+        {
+            "name": "Memoria RAM Hiksemi 16GB DDR4 3200MHz",
+            "slug": "hiksemi-16gb-ddr4-3200mhz",
+            "category_slug": "memorias-ram",
+            "brand": "Hiksemi",
+            "model": "DDR4 16GB 3200MHz",
+            "mpn": "HSC416U32Z2",
+            "image_url": "https://necs.pe/uploads/img/1783017080_hiksemi_ddr4_552355.webp",
         },
     ]
     products_map: dict[str, Product] = {}
@@ -404,6 +449,42 @@ def seed_canonical_catalog(
             "store_domain": "cyccomputer.pe",
             "product_url": "https://cyccomputer.pe/producto/memorias-usb/26549-memoria-usb-64gb-kingston-data-traveler-exodia-m-blue-black-v-32-pndtxm64gb.html",
             "external_sku": "16066KG0205",
+            "image_url": "https://cyccomputer.pe/50914-large_default/memoria-usb-64gb-kingston-data-traveler-exodia-m-blue-black-v-32-pndtxm64gb.jpg",
+        },
+        {
+            "product_slug": "msi-radeon-rx-6600-xt-8gb",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/13111",
+            "external_sku": "1560",
+            "image_url": "https://necs.pe/uploads/img/1781130627_MSI%206600XT.webp",
+        },
+        {
+            "product_slug": "asrock-pro-650g-650w-80-plus-gold",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/16725",
+            "external_sku": "1640",
+            "image_url": "https://necs.pe/uploads/img/1787347665_ASROCK_650W_73b5a0.webp",
+        },
+        {
+            "product_slug": "msi-spatium-s270-240gb-sata",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/16749",
+            "external_sku": "1643",
+            "image_url": "https://necs.pe/uploads/img/1788194239_msi_spatium_270_28c44c.webp",
+        },
+        {
+            "product_slug": "teros-te-3218g-315-2k-180hz",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/14031",
+            "external_sku": "1570",
+            "image_url": "https://necs.pe/uploads/img/1783990113_TEROS_DE_315_2f2cc1.webp",
+        },
+        {
+            "product_slug": "hiksemi-16gb-ddr4-3200mhz",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/15170",
+            "external_sku": "1573",
+            "image_url": "https://necs.pe/uploads/img/1783017080_hiksemi_ddr4_552355.webp",
         },
     ]
     store_products_map: dict[tuple[str, str], StoreProduct] = {}
@@ -418,12 +499,14 @@ def seed_canonical_catalog(
             )
         ).first()
         is_active = sp_data.get("is_active", True)
+        sp_image = sp_data.get("image_url")
         if not existing:
             sp = StoreProduct(
                 product_id=prod.id,
                 store_id=store.id,
                 product_url=sp_data["product_url"],
                 external_sku=sp_data["external_sku"],
+                image_url=sp_image,
                 is_active=is_active,
             )
             db.add(sp)
@@ -435,6 +518,8 @@ def seed_canonical_catalog(
                 existing.external_sku = sp_data["external_sku"]
             if existing.is_active != is_active:
                 existing.is_active = is_active
+            if sp_image and existing.image_url != sp_image:
+                existing.image_url = sp_image
             store_products_map[(sp_data["product_slug"], sp_data["store_domain"])] = existing
 
     return counts, store_products_map

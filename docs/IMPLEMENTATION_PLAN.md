@@ -97,13 +97,32 @@ Resultado verificable: 287 pruebas aprobadas (Backend: 104, Worker: 107, Fronten
 
 ## Incremento 8 Integración y Despliegue en AWS (Fase posterior)
 
+- **Subincremento pre-8D: Presentación y gestión de imágenes del catálogo actual y semántica de ofertas**:
+  - Migración Alembic `009_store_product_image_url` añadiendo columna `image_url` nullable a `store_products`.
+  - Captura y persistencia de imagen real de tiendas autorizadas desde adaptadores existentes (`necs.pe`, `memorykings.pe`, `computershopperu.com`, `cyccomputer.pe`).
+  - Validación estricta: HTTPS obligatorio, whitelist de dominios/CDNs y rechazo de placeholders (`no-image`, etc.).
+  - Persistencia no destructiva y selección determinista de imagen canónica en `Product.image_url` (prioridad: Memory Kings CDN 100 > NECS 80 > Computer Shop 60 > CyC 40).
+  - Purga de imágenes sintéticas de Unsplash del seed canónico (`image_url = None` para fichas no auditadas, activando fallback local `<Cpu />` con `onError` en React).
+  - Semántica diferenciada en API y frontend entre oferta única ("Disponible en 1 tienda", "Oferta registrada", sin llamar a la sección "Comparativa de precios") y múltiples ofertas ("Disponible en X tiendas", "Mejor precio actual", comparativa ordenada por precio).
+  - Exposición de `active_offers_count` y `has_multiple_offers` en API de catálogo y detalle.
 - Configurar SQS y DLQ nativas en AWS.
 - Configurar EventBridge para ejecución programada.
 - Crear tareas ECS Fargate para API FastAPI, worker y dispatcher.
 - Configurar RDS PostgreSQL, S3, CloudFront y Application Load Balancer (ALB).
 - Autenticación administrativa segura (Cognito / OIDC) y métricas en CloudWatch.
 
+## Incremento 9 Post-Demostración y Escalabilidad
+
+- **Subincremento 9A: Crecimiento y descubrimiento controlado del catálogo**:
+  - Descubrimiento controlado de nuevos productos reales únicamente en tiendas y categorías autorizadas (Procesadores, Tarjetas de Video, Memorias RAM, Placas Madre, Fuentes de Poder, Refrigeración, Monitores, Almacenamiento).
+  - Aceptación de productos presentes en una sola tienda para permitir el crecimiento progresivo del catálogo.
+  - Extracción y persistencia obligatoria de imagen real de tienda en `store_products.image_url`.
+  - Promoción de imagen canónica a `Product.image_url` mediante regla de precedencia determinista y jerárquica.
+  - Objetivo progresivo: alcanzar entre 5 y 10 productos reales con observaciones verificadas por cada categoría aprobada.
+  - Trazabilidad e idempotencia sin degradar el historial de observaciones existentes.
+
 ## Orden para pedir tareas a la IA
+
 
 Utilizar solicitudes pequeñas, por ejemplo:
 

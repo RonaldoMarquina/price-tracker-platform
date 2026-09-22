@@ -124,10 +124,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSelect }) =
           borderTop: "1px solid var(--color-border)",
           display: "flex",
           flexDirection: "column",
-          gap: "0.25rem",
+          gap: "0.35rem",
         }}
       >
         {(() => {
+          const activeCount =
+            product.active_offers_count !== undefined
+              ? product.active_offers_count
+              : (product.best_price ? 1 : (product.latest_price ? 1 : 0));
+          const hasMultiple =
+            product.has_multiple_offers !== undefined
+              ? product.has_multiple_offers
+              : activeCount >= 2;
+
           const offer = product.best_price
             ? {
                 amount: product.best_price.amount,
@@ -144,18 +153,41 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSelect }) =
               }
             : null;
 
-          if (offer) {
+          if (offer && activeCount > 0) {
             return (
               <div>
-                <span
+                <div
                   style={{
-                    fontSize: "0.75rem",
-                    color: "var(--color-text-secondary)",
-                    display: "block",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "0.2rem",
                   }}
                 >
-                  Mejor oferta:
-                </span>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: hasMultiple ? "var(--color-primary)" : "var(--color-text-secondary)",
+                    }}
+                  >
+                    {hasMultiple ? "Mejor precio:" : "Oferta registrada:"}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      backgroundColor: hasMultiple ? "#eff6ff" : "#f1f5f9",
+                      color: hasMultiple ? "#1d4ed8" : "#475569",
+                      padding: "0.15rem 0.45rem",
+                      borderRadius: "var(--radius-sm)",
+                    }}
+                  >
+                    {hasMultiple
+                      ? `Disponible en ${activeCount} tiendas`
+                      : "Disponible en 1 tienda"}
+                  </span>
+                </div>
                 <div
                   style={{
                     display: "flex",

@@ -221,4 +221,80 @@ describe("ProductDetailPage component", () => {
       expect(screen.getByText("No se registran ofertas vigentes en stock para este producto.")).toBeInTheDocument();
     });
   });
+
+  it("renders single offer semantics correctly: 'Oferta registrada' and 'Ofertas por Tienda', never 'Mejor precio'", async () => {
+    const singleOfferDetail: ProductDetailOut = {
+      ...mockProductDetail,
+      active_offers_count: 1,
+      has_multiple_offers: false,
+      best_price: {
+        amount: "1720.00",
+        currency: "PEN",
+        store_id: "store-1",
+        store_name: "SercoPlus",
+        price_condition: "standard",
+        captured_at: "2026-09-18T10:00:00Z",
+      },
+      stores: [mockProductDetail.stores[0]],
+    };
+    vi.spyOn(productsApi, "getProductById").mockResolvedValueOnce(singleOfferDetail);
+    vi.spyOn(productsApi, "getPriceHistory").mockResolvedValueOnce(mockPriceHistory);
+
+    render(<ProductDetailPage productId="prod-detail-1" onNavigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Disponible en 1 tienda")).toBeInTheDocument();
+      expect(screen.getByText("Oferta registrada")).toBeInTheDocument();
+      expect(screen.queryByText("Mejor precio actual")).not.toBeInTheDocument();
+      expect(screen.getByText("Ofertas por Tienda")).toBeInTheDocument();
+      expect(screen.queryByText("Comparativa de Precios por Tienda")).not.toBeInTheDocument();
+    });
+  });
+
+  it("renders multiple offers semantics correctly: 'Mejor precio actual' and 'Comparativa de Precios por Tienda'", async () => {
+    const multiOfferDetail: ProductDetailOut = {
+      ...mockProductDetail,
+      active_offers_count: 2,
+      has_multiple_offers: true,
+      best_price: {
+        amount: "1720.00",
+        currency: "PEN",
+        store_id: "store-1",
+        store_name: "SercoPlus",
+        price_condition: "standard",
+        captured_at: "2026-09-18T10:00:00Z",
+      },
+    };
+    vi.spyOn(productsApi, "getProductById").mockResolvedValueOnce(multiOfferDetail);
+    vi.spyOn(productsApi, "getPriceHistory").mockResolvedValueOnce(mockPriceHistory);
+
+    render(<ProductDetailPage productId="prod-detail-1" onNavigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Disponible en 2 tiendas")).toBeInTheDocument();
+      expect(screen.getByText("Mejor precio actual")).toBeInTheDocument();
+      expect(screen.getByText("Comparativa de Precios por Tienda")).toBeInTheDocument();
+    });
+  });
+
+  it("renders fallback placeholder on product hero image onError", async () => {
+    const detailWithImg: ProductDetailOut = {
+      ...mockProductDetail,
+      image_url: "https://necs.pe/invalid-broken.jpg",
+    };
+    vi.spyOn(productsApi, "getProductById").mockResolvedValueOnce(detailWithImg);
+    vi.spyOn(productsApi, "getPriceHistory").mockResolvedValueOnce(mockPriceHistory);
+
+    render(<ProductDetailPage productId="prod-detail-1" onNavigate={vi.fn()} />);
+
+    await waitFor(() => {
+      const img = screen.getByAltText(mockProductDetail.name);
+      expect(img).toBeInTheDocument();
+      fireEvent.error(img);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Sin imagen disponible")).toBeInTheDocument();
+    });
+  });
 });

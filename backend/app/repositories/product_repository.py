@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.db.models import Category, PriceObservation, Product, Store, StoreProduct
@@ -21,8 +21,15 @@ class ProductRepository:
         category_slug: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        with_offers_only: bool = False,
     ) -> tuple[list[Product], int]:
-        """Fetch active products with optional multi-field text search and category filter."""
+        """Fetch active products with optional multi-field text search and category filter.
+
+        Args:
+            with_offers_only: When True, exclude products that have no active in-stock
+                price observation. The total count also reflects this filter so pagination
+                remains consistent.
+        """
         base_query = select(Product).join(Product.category).where(Product.is_active.is_(True))
 
         if q and q.strip():
@@ -71,6 +78,28 @@ class ProductRepository:
 
         if category_slug and category_slug.strip():
             base_query = base_query.where(Category.slug == category_slug.strip().lower())
+
+        if with_offers_only:
+            # Subquery: product IDs that have at least one active, in-stock observation
+            active_sp_subq = (
+                select(StoreProduct.product_id)
+                .join(Store, StoreProduct.store_id == Store.id)
+                .join(PriceObservation, PriceObservation.store_product_id == StoreProduct.id)
+                .where(
+                    StoreProduct.is_active.is_(True),
+                    Store.is_active.is_(True),
+                    PriceObservation.price.is_not(None),
+                    PriceObservation.price > 0,
+                    PriceObservation.availability == "in_stock",
+                )
+                .distinct()
+                .scalar_subquery()
+            )
+            base_query = base_query.where(
+                exists(active_sp_subq.correlate(None).where(active_sp_subq.c[0] == Product.id))  # type: ignore[union-attr]
+                if False
+                else Product.id.in_(active_sp_subq)
+            )
 
         count_stmt = select(func.count()).select_from(base_query.subquery())
         total = db.scalar(count_stmt) or 0
@@ -183,6 +212,52 @@ class ProductRepository:
                 captured_at=row[5],
             )
         return None
+
+    def get_active_offers_count(
+        self, db: Session, product_id: uuid.UUID, currency: str = "PEN"
+    ) -> int:
+        """Count distinct active stores with a valid, in-stock price observation in currency.
+
+        Excludes:
+        - Inactive stores (store.is_active is False)
+        - Inactive associations (store_product.is_active is False)
+        - Out-of-stock or unknown availability
+        - Observations with price=None or price <= 0
+        """
+        subq = (
+            select(
+                PriceObservation.store_product_id,
+                func.max(PriceObservation.captured_at).label("max_captured"),
+            )
+            .join(StoreProduct, PriceObservation.store_product_id == StoreProduct.id)
+            .where(
+                StoreProduct.product_id == product_id,
+                StoreProduct.is_active.is_(True),
+            )
+            .group_by(PriceObservation.store_product_id)
+            .subquery()
+        )
+
+        stmt = (
+            select(func.count(func.distinct(Store.id)))
+            .select_from(PriceObservation)
+            .join(
+                subq,
+                (PriceObservation.store_product_id == subq.c.store_product_id)
+                & (PriceObservation.captured_at == subq.c.max_captured),
+            )
+            .join(StoreProduct, PriceObservation.store_product_id == StoreProduct.id)
+            .join(Store, StoreProduct.store_id == Store.id)
+            .where(
+                Store.is_active.is_(True),
+                StoreProduct.is_active.is_(True),
+                PriceObservation.price.is_not(None),
+                PriceObservation.price > 0,
+                PriceObservation.currency == currency,
+                PriceObservation.availability == "in_stock",
+            )
+        )
+        return int(db.scalar(stmt) or 0)
 
     def get_by_id(self, db: Session, product_id: uuid.UUID) -> Product | None:
         """Fetch active product by UUID including category and active store relations."""

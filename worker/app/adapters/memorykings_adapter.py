@@ -13,12 +13,14 @@ from app.adapters.base import (
     BaseStoreAdapter,
     FatalScrapingError,
     ScrapedPriceResult,
+    validate_store_image_url,
 )
 from app.core.network import SafeHttpClient
 
 logger = logging.getLogger("price-tracker.worker.adapters.memorykings")
 
 ALLOWED_MEMORYKINGS_HOSTS = {"memorykings.pe", "www.memorykings.pe"}
+ALLOWED_MEMORYKINGS_IMAGE_HOSTS = {"cdn.memorykings.pe", "memorykings.pe", "www.memorykings.pe"}
 
 
 class MemoryKingsAdapter(BaseStoreAdapter):
@@ -239,10 +241,5 @@ class MemoryKingsAdapter(BaseStoreAdapter):
         return "in_stock"
 
     def _validate_image_url(self, url: Any) -> str | None:
-        """Validate that image URL is well-formed HTTPS string without downloading."""
-        if not isinstance(url, str):
-            return None
-        cleaned = url.strip()
-        if cleaned.startswith("https://") or cleaned.startswith("http://"):
-            return cleaned
-        return None
+        """Validate that image URL is HTTPS on authorized domain without downloading."""
+        return validate_store_image_url(url, ALLOWED_MEMORYKINGS_IMAGE_HOSTS)

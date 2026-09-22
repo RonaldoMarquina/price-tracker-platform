@@ -139,6 +139,47 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     };
   }, [product]);
 
+  const calculatedActiveOffersCount = useMemo(() => {
+    if (product?.active_offers_count !== undefined) {
+      return product.active_offers_count;
+    }
+    if (!product?.stores) return 0;
+    return product.stores.filter(
+      (s) =>
+        s.is_store_active !== false &&
+        s.latest_price?.amount &&
+        (s.latest_price.availability === "in_stock" || !s.latest_price.availability)
+    ).length;
+  }, [product]);
+
+  const hasMultipleOffers = useMemo(() => {
+    if (product?.has_multiple_offers !== undefined) {
+      return product.has_multiple_offers;
+    }
+    return calculatedActiveOffersCount >= 2;
+  }, [product, calculatedActiveOffersCount]);
+
+  const sortedStores = useMemo(() => {
+    if (!product?.stores) return [];
+    if (!hasMultipleOffers) return product.stores;
+    return [...product.stores].sort((a, b) => {
+      const aInStock =
+        a.is_store_active !== false &&
+        a.latest_price?.availability === "in_stock" &&
+        a.latest_price?.amount;
+      const bInStock =
+        b.is_store_active !== false &&
+        b.latest_price?.availability === "in_stock" &&
+        b.latest_price?.amount;
+      if (aInStock && !bInStock) return -1;
+      if (!aInStock && bInStock) return 1;
+      if (aInStock && bInStock) {
+        return parseFloat(a.latest_price!.amount!) - parseFloat(b.latest_price!.amount!);
+      }
+      return 0;
+    });
+  }, [product?.stores, hasMultipleOffers]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
       {/* Breadcrumb & Botón Volver */}
@@ -262,6 +303,22 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   {product.brand}
                 </span>
               )}
+              {calculatedActiveOffersCount > 0 && (
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    backgroundColor: hasMultipleOffers ? "#eff6ff" : "#f1f5f9",
+                    color: hasMultipleOffers ? "#1d4ed8" : "#475569",
+                    padding: "0.2rem 0.55rem",
+                    borderRadius: "var(--radius-full)",
+                  }}
+                >
+                  {hasMultipleOffers
+                    ? `Disponible en ${calculatedActiveOffersCount} tiendas`
+                    : "Disponible en 1 tienda"}
+                </span>
+              )}
             </div>
 
             <h1
@@ -310,7 +367,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                       style={{
                         fontSize: "0.75rem",
                         fontWeight: 600,
-                        color: "#166534",
+                        color: hasMultipleOffers ? "#166534" : "#1e40af",
                         textTransform: "uppercase",
                         letterSpacing: "0.05em",
                         display: "flex",
@@ -319,8 +376,17 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                         marginBottom: "0.25rem",
                       }}
                     >
-                      <TrendingDown size={14} />
-                      Mejor precio actual
+                      {hasMultipleOffers ? (
+                        <>
+                          <TrendingDown size={14} />
+                          Mejor precio actual
+                        </>
+                      ) : (
+                        <>
+                          <Tag size={14} />
+                          Oferta registrada
+                        </>
+                      )}
                     </span>
                     <div
                       style={{
@@ -434,7 +500,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         </div>
       ) : null}
 
-      {/* Sección 1: Comparativa de Tiendas */}
+      {/* Sección 1: Comparativa u Ofertas por Tienda */}
       {product && (
         <section>
           <div style={{ marginBottom: "1rem" }}>
@@ -446,14 +512,18 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 marginBottom: "0.25rem",
               }}
             >
-              Comparativa de Precios por Tienda
+              {hasMultipleOffers
+                ? "Comparativa de Precios por Tienda"
+                : "Ofertas por Tienda"}
             </h2>
             <p style={{ fontSize: "0.875rem", color: "var(--color-text-secondary)" }}>
-              Precios y disponibilidad reportados por cada establecimiento comercial
+              {hasMultipleOffers
+                ? "Precios y disponibilidad reportados por cada establecimiento comercial ordenados por mejor precio"
+                : "Precios y disponibilidad reportados por cada establecimiento comercial"}
             </p>
           </div>
 
-          <StoreTable stores={product.stores} />
+          <StoreTable stores={sortedStores} />
         </section>
       )}
 

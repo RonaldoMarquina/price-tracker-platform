@@ -407,3 +407,111 @@ def test_price_history_excludes_invalid_observations(db_session: Session):
     assert len(points) == 1
     assert points[0].id == obs_valid.id
     assert points[0].price == Decimal("199.90")
+
+
+def test_active_offers_count_and_has_multiple_offers(db_session: Session):
+    """Verify active_offers_count and has_multiple_offers semantics:
+    - Out of stock, null price, unknown availability, inactive stores or store_products
+      do not count.
+    - Exactly 1 valid in-stock offer -> active_offers_count = 1, has_multiple_offers = False.
+    - 2 or more valid in-stock offers -> active_offers_count >= 2, has_multiple_offers = True.
+    """
+    repo = ProductRepository()
+    service = ProductService()
+
+    cat = Category(name=f"Cat-{uuid.uuid4().hex[:6]}", slug=f"cat-{uuid.uuid4().hex[:6]}")
+    prod = Product(name="Offer Test Product", slug=f"offers-{uuid.uuid4().hex[:6]}", category=cat)
+
+    store1 = Store(
+        name=f"S1-{uuid.uuid4().hex[:4]}", domain=f"s1-{uuid.uuid4().hex[:4]}.pe", is_active=True
+    )
+    store2 = Store(
+        name=f"S2-{uuid.uuid4().hex[:4]}", domain=f"s2-{uuid.uuid4().hex[:4]}.pe", is_active=True
+    )
+    store3 = Store(
+        name=f"S3-{uuid.uuid4().hex[:4]}", domain=f"s3-{uuid.uuid4().hex[:4]}.pe", is_active=True
+    )
+    db_session.add_all([cat, prod, store1, store2, store3])
+    db_session.commit()
+
+    sp1 = StoreProduct(product_id=prod.id, store_id=store1.id, product_url="https://s1.pe/p")
+    sp2 = StoreProduct(product_id=prod.id, store_id=store2.id, product_url="https://s2.pe/p")
+    sp3 = StoreProduct(product_id=prod.id, store_id=store3.id, product_url="https://s3.pe/p")
+    db_session.add_all([sp1, sp2, sp3])
+    db_session.commit()
+
+    # Step 1: No observations -> active_offers = 0, has_multiple = False
+    assert repo.get_active_offers_count(db_session, prod.id) == 0
+    detail = service.get_product_detail(db_session, prod.id)
+    assert detail.active_offers_count == 0
+    assert detail.has_multiple_offers is False
+
+    # Step 2: Store 1 has in_stock observation, Store 2 has out_of_stock, Store 3 has NULL price
+    t1 = datetime.now(timezone.utc)
+    obs1 = PriceObservation(
+        store_product_id=sp1.id,
+        price=Decimal("100.00"),
+        currency="PEN",
+        availability="in_stock",
+        captured_at=t1,
+    )
+    obs2 = PriceObservation(
+        store_product_id=sp2.id,
+        price=Decimal("90.00"),
+        currency="PEN",
+        availability="out_of_stock",
+        captured_at=t1,
+    )
+    obs3 = PriceObservation(
+        store_product_id=sp3.id,
+        price=None,
+        currency=None,
+        availability="out_of_stock",
+        captured_at=t1,
+    )
+    db_session.add_all([obs1, obs2, obs3])
+    db_session.commit()
+
+    # Out of stock and null prices MUST NOT count as active offers
+    assert repo.get_active_offers_count(db_session, prod.id) == 1
+    detail = service.get_product_detail(db_session, prod.id)
+    assert detail.active_offers_count == 1
+    assert detail.has_multiple_offers is False
+
+    # Also check catalog listing
+    res = service.list_products(db_session, q=prod.name)
+    assert res.total >= 1
+    target_item = next(p for p in res.items if p.id == prod.id)
+    assert target_item.active_offers_count == 1
+    assert target_item.has_multiple_offers is False
+
+    # Step 3: Store 2 gets updated with in_stock observation -> now 2 stores active
+    t2 = datetime.now(timezone.utc)
+    obs2_new = PriceObservation(
+        store_product_id=sp2.id,
+        price=Decimal("95.00"),
+        currency="PEN",
+        availability="in_stock",
+        captured_at=t2,
+    )
+    db_session.add(obs2_new)
+    db_session.commit()
+
+    assert repo.get_active_offers_count(db_session, prod.id) == 2
+    detail = service.get_product_detail(db_session, prod.id)
+    assert detail.active_offers_count == 2
+    assert detail.has_multiple_offers is True
+
+    res2 = service.list_products(db_session, q=prod.name)
+    target_item = next(p for p in res2.items if p.id == prod.id)
+    assert target_item.active_offers_count == 2
+    assert target_item.has_multiple_offers is True
+
+    # Step 4: Deactivate store 1 -> drops back to 1 active offer
+    store1.is_active = False
+    db_session.commit()
+
+    assert repo.get_active_offers_count(db_session, prod.id) == 1
+    detail = service.get_product_detail(db_session, prod.id)
+    assert detail.active_offers_count == 1
+    assert detail.has_multiple_offers is False

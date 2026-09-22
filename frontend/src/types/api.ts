@@ -28,6 +28,8 @@ export interface ProductListItemOut {
   image_url: string | null;
   best_price?: BestPriceOut | null;
   latest_price?: LatestPriceOut | null;
+  active_offers_count?: number;
+  has_multiple_offers?: boolean;
 }
 
 export interface ProductListResponse {
@@ -56,6 +58,7 @@ export interface ProductStoreOut {
   store_id: string;
   store_name: string;
   product_url: string;
+  image_url?: string | null;
   external_sku: string | null;
   is_store_active: boolean;
   latest_price: StoreProductPriceOut | null;
@@ -73,6 +76,8 @@ export interface ProductDetailOut {
   created_at: string;
   updated_at: string;
   best_price?: BestPriceOut | null;
+  active_offers_count?: number;
+  has_multiple_offers?: boolean;
   stores: ProductStoreOut[];
 }
 

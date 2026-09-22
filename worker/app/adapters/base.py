@@ -108,3 +108,56 @@ class BaseStoreAdapter(ABC):
     def fetch_product_price(self, store_product_url: str) -> ScrapedPriceResult:
         """Fetch and normalize product price from a store URL."""
         pass
+
+
+PLACEHOLDER_IMAGE_PATTERNS: tuple[str, ...] = (
+    "no-image",
+    "sin-imagen",
+    "placeholder",
+    "default-image",
+    "product-default",
+    "image-not-found",
+    "sin_imagen",
+    "no_image",
+    "not-available",
+    "img_placeholder",
+)
+
+
+def validate_store_image_url(url: object, allowed_hosts: set[str]) -> str | None:
+    """Validate that image URL is well-formed HTTPS string belonging to an authorized domain or CDN.
+
+    Rejects:
+    - Non-string or whitespace-only values
+    - Insecure schemes (HTTP, FTP, data URI, etc.)
+    - Domains/CDNs not present in allowed_hosts
+    - Common placeholder or fallback images (e.g. no-image, placeholder)
+    """
+    if not isinstance(url, str):
+        return None
+    cleaned = url.strip()
+    if not cleaned:
+        return None
+
+    # Strict HTTPS scheme validation
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(cleaned)
+    except Exception:
+        return None
+
+    if parsed.scheme.lower() != "https":
+        return None
+
+    netloc = (parsed.netloc or "").lower()
+    hostname = netloc.split(":")[0]
+    if hostname not in allowed_hosts:
+        return None
+
+    path_lower = parsed.path.lower()
+    for pattern in PLACEHOLDER_IMAGE_PATTERNS:
+        if pattern in path_lower:
+            return None
+
+    return cleaned

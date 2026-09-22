@@ -13,6 +13,7 @@ from app.adapters.base import (
     BaseStoreAdapter,
     FatalScrapingError,
     ScrapedPriceResult,
+    validate_store_image_url,
 )
 from app.core.network import SafeHttpClient
 
@@ -197,6 +198,8 @@ class NecsAdapter(BaseStoreAdapter):
             final_price = parsed_price
             final_currency = currency
 
+        validated_image_url = validate_store_image_url(image_url, ALLOWED_NECS_HOSTS)
+
         return ScrapedPriceResult(
             price=final_price,
             currency=final_currency,
@@ -206,7 +209,7 @@ class NecsAdapter(BaseStoreAdapter):
             sku=sku,
             mpn=mpn,
             name=name,
-            image_url=image_url,
+            image_url=validated_image_url,
         )
 
     def _extract_jsonld_product(self, soup: BeautifulSoup) -> dict[str, Any] | None:

@@ -80,6 +80,20 @@ class ScrapingWorkerService:
             # Execute store adapter (can throw TransientScrapingError or FatalScrapingError)
             scraped = adapter.fetch_product_price(store_product.product_url)
 
+            # Non-destructively persist scraped store product image and update canonical image
+            if scraped.image_url:
+                self.repository.update_store_product_image_url(
+                    db=db,
+                    store_product_id=store_product.id,
+                    image_url=scraped.image_url,
+                )
+                self.repository.update_product_canonical_image(
+                    db=db,
+                    product_id=store_product.product_id,
+                    new_image_url=scraped.image_url,
+                    store_domain=store.domain if store else None,
+                )
+
             # Persist observation with ON CONFLICT (source_hash) DO NOTHING
             was_inserted = self.repository.insert_observation_idempotent(
                 db=db,

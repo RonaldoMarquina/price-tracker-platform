@@ -61,8 +61,14 @@ def get_seeded_product() -> tuple[Product, Store, StoreProduct, PriceObservation
                 store_product_id=sp.id,
                 price=Decimal("799.90"),
                 currency="PEN",
+                availability="in_stock",  # Required for with_offers_only=True filter
             )
             db.add(obs)
+            db.flush()
+        elif obs.availability != "in_stock":
+            obs.availability = "in_stock"
+            obs.price = Decimal("799.90")
+            obs.currency = "PEN"
             db.flush()
 
         db.commit()
@@ -98,9 +104,13 @@ def test_list_products_default_pagination():
 
 
 def test_list_products_search_filter():
-    """Verify search filter ?q= parameter."""
+    """Verify search filter ?q= parameter returns matching results.
+
+    Uses with_offers_only=false to test pure text search without the active-offer
+    constraint (the search filter is orthogonal to offer filtering).
+    """
     get_seeded_product()
-    response = client.get("/api/v1/products?q=Ryzen")
+    response = client.get("/api/v1/products?q=Ryzen&with_offers_only=false")
     assert response.status_code == 200
     data = response.json()
     assert data["total"] >= 1

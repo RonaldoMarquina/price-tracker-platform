@@ -125,6 +125,7 @@ class StoreProduct(Base):
     )
     external_sku: Mapped[str | None] = mapped_column(String(150), nullable=True)
     product_url: Mapped[str] = mapped_column(Text, nullable=False)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("true"), nullable=False
     )

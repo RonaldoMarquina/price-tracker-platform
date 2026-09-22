@@ -12,6 +12,7 @@ from app.adapters.base import (
     BaseStoreAdapter,
     FatalScrapingError,
     ScrapedPriceResult,
+    validate_store_image_url,
 )
 from app.core.network import SafeHttpClient
 from app.core.price_parser import parse_pen_price
@@ -225,14 +226,15 @@ class CycComputerAdapter(BaseStoreAdapter):
         """Extract canonical product image URL without downloading image."""
         og_img = soup.find("meta", property="og:image")
         if og_img and og_img.get("content"):
-            url = og_img["content"].strip()
-            if url.startswith("http"):
-                return url
+            validated = validate_store_image_url(og_img.get("content"), ALLOWED_CYC_HOSTS)
+            if validated:
+                return validated
 
         img_el = soup.find("img", class_=re.compile(r"js-qv-product-cover|product-image", re.I))
         if img_el:
-            url = img_el.get("src") or img_el.get("data-image-large-src")
-            if url and url.startswith("http"):
-                return url.strip()
+            candidate = img_el.get("src") or img_el.get("data-image-large-src")
+            validated = validate_store_image_url(candidate, ALLOWED_CYC_HOSTS)
+            if validated:
+                return validated
 
         return None
