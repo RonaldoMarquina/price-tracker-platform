@@ -8,7 +8,23 @@ Permitir que una persona busque un producto, consulte su evolución de precio y 
 
 ## Estado actual
 
-Incrementos 0 (Preparación), 1 (Persistencia) y 2 (API de lectura del catálogo e historial) completados y verificados.
+- **Incrementos completados**:
+  - Incremento 0: Preparación y entorno Docker Compose.
+  - Incremento 1: Persistencia base y migraciones Alembic.
+  - Incremento 2: API de lectura del catálogo e historial.
+  - Incremento 3: Frontend mínimo en React con catálogo e historial.
+  - Incremento 4: Procesamiento asíncrono local con colas en PostgreSQL.
+  - Incremento 5: Adaptadores reales de scraping y canalizaciones de extracción.
+  - Incremento 6: Módulo analítico de mercado y dashboard de tendencias.
+  - Incremento 7: Supervisión, trazabilidad y control operativo del scraping:
+    - **7A**: Persistencia y ciclo de vida de `ScrapingJob` (Commit `573107b`).
+    - **7B**: Dispatcher local independiente y API operativa protegida (Commit `98fbd70`).
+    - **7C**: Inspección sanitizada y replay transaccional de DLQ (Commit `0bce133`).
+    - **7D**: Panel web `/operations` pospuesto por decisión de seguridad arquitectónica.
+- **Operación administrativa provisional**: Exclusivamente local mediante Swagger UI (`/docs`) y endpoints REST protegidos con `INTERNAL_API_KEY`.
+- **Regla de seguridad**: `/docs`, `/redoc` y `/openapi.json` permanecen restringidos de la exposición pública en producción.
+- **Pruebas automatizadas**: 287 pruebas aprobadas (Backend: 104, Worker: 107, Frontend: 76).
+- **Migración activa**: `007_dlq_audit_and_replay`.
 
 ## Estructura del Proyecto
 
