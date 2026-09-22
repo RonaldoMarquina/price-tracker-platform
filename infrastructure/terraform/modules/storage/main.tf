@@ -43,6 +43,32 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 }
 
 # ==========================================
+# CloudFront Function (SPA Routing)
+# ==========================================
+resource "aws_cloudfront_function" "spa_router" {
+  name    = "${var.project}-${var.environment}-spa-router"
+  runtime = "cloudfront-js-2.0"
+  comment = "SPA routing: rewrite non-file routes to /index.html and bypass /api/"
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+        var request = event.request;
+        var uri = request.uri;
+
+        if (uri.startsWith('/api/')) {
+            return request;
+        }
+
+        if (!uri.includes('.')) {
+            request.uri = '/index.html';
+        }
+
+        return request;
+    }
+  EOT
+}
+
+# ==========================================
 # CloudFront Distribution
 # ==========================================
 resource "aws_cloudfront_distribution" "this" {
@@ -94,6 +120,11 @@ resource "aws_cloudfront_distribution" "this" {
       }
     }
 
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_router.arn
+    }
+
     min_ttl     = 0
     default_ttl = 3600
     max_ttl     = 86400
@@ -123,21 +154,6 @@ resource "aws_cloudfront_distribution" "this" {
     }
 
     compress = true
-  }
-
-  # SPA Routing Fallback: Route 403 and 404 to /index.html with status 200
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
-  }
-
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
   }
 
   restrictions {

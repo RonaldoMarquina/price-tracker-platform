@@ -360,7 +360,7 @@ resource "aws_ecs_task_definition" "backend_api" {
       name      = "api"
       image     = var.backend_image_uri
       essential = true
-      command   = ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+      command   = ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
       portMappings = [
         {
           containerPort = 8000
@@ -679,7 +679,7 @@ resource "aws_ecs_service" "dlq_indexer" {
   name            = "${var.project}-${var.environment}-dlq-indexer"
   cluster         = aws_ecs_cluster.this.id
   task_definition = aws_ecs_task_definition.dlq_indexer.arn
-  desired_count   = 1
+  desired_count   = 0
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -695,6 +695,7 @@ resource "aws_ecs_service" "dlq_indexer" {
 resource "aws_scheduler_schedule" "dispatcher" {
   name       = "${var.project}-${var.environment}-dispatcher"
   group_name = "default"
+  state      = "DISABLED"
 
   flexible_time_window {
     mode = "OFF"
