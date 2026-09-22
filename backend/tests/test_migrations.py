@@ -231,6 +231,42 @@ def test_migration_007_safe_downgrade_and_upgrade():
     assert "replayed_at" in j_cols_up
 
 
+def test_migration_008_safe_downgrade_and_upgrade():
+    """Verify safe downgrade and upgrade of migration 008 on test database."""
+    import pathlib
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    backend_dir = pathlib.Path(__file__).parent.parent
+    alembic_cfg = Config(str(backend_dir / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
+
+    # Downgrade 008 (008 -> 007)
+    try:
+        command.downgrade(alembic_cfg, "007_dlq_audit_and_replay")
+        inspector = inspect(engine)
+        tables_down = set(inspector.get_table_names())
+        assert "scraping_outbox" not in tables_down
+        assert "scraping_dlq_ledger" not in tables_down
+        assert "scraping_quarantine" not in tables_down
+        j_cols_down = [col["name"] for col in inspector.get_columns("scraping_jobs")]
+        assert "payload" not in j_cols_down
+    finally:
+        # Upgrade back to head
+        command.upgrade(alembic_cfg, "head")
+
+    inspector_up = inspect(engine)
+    tables_up = set(inspector_up.get_table_names())
+    assert "scraping_outbox" in tables_up
+    assert "scraping_dlq_ledger" in tables_up
+    assert "scraping_quarantine" in tables_up
+    j_cols_up = [col["name"] for col in inspector_up.get_columns("scraping_jobs")]
+    assert "payload" in j_cols_up
+
+
 def test_seed_idempotency():
     """Verify seed function can be called multiple times without duplicate records or errors."""
     db: Session = SessionLocal()

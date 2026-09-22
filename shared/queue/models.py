@@ -4,7 +4,17 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Text, Uuid, func, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -12,7 +22,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 class QueueModelBase(DeclarativeBase):
     """Base class for shared queue model."""
 
-    pass
 
 
 class LocalQueueMessage(QueueModelBase):

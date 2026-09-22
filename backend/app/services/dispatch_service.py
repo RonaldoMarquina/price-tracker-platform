@@ -2,6 +2,7 @@
 
 import logging
 import math
+import os
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -23,7 +24,14 @@ from app.core.advisory_lock import (
     PostgresAdvisoryLock,
 )
 from app.core.queue import get_queue_service
-from app.db.models import Product, ScrapingJob, Store, StoreProduct
+from app.db.models import (
+    Product,
+    ScrapingDlqLedger,
+    ScrapingJob,
+    ScrapingOutbox,
+    Store,
+    StoreProduct,
+)
 from app.db.session import SessionLocal, engine
 from app.schemas.scraping import (
     DLQMessageItemResponse,
@@ -202,6 +210,15 @@ class DispatchService:
                         job_id = uuid.uuid4()
                         job_created_at = datetime.now(timezone.utc)
 
+                        message = ScrapingMessage(
+                            version=1,
+                            job_id=job_id,
+                            store_id=store.id,
+                            product_ids=product_ids,
+                            requested_at=job_created_at,
+                            attempt=1,
+                        )
+
                         job = ScrapingJob(
                             id=job_id,
                             store_id=store.id,
@@ -211,19 +228,27 @@ class DispatchService:
                             batch_size=len(product_ids),
                             observations_created=0,
                             attempts=0,
+                            payload=message.model_dump(mode="json"),
                             created_at=job_created_at,
                         )
                         store_tx.add(job)
 
-                        message = ScrapingMessage(
-                            version=1,
-                            job_id=job_id,
-                            store_id=store.id,
-                            product_ids=product_ids,
-                            requested_at=job_created_at,
-                            attempt=1,
-                        )
-                        self.queue.send_message("scraping-jobs", message, session=store_tx)
+                        if os.getenv("QUEUE_BACKEND") == "sqs":
+                            outbox_entry = ScrapingOutbox(
+                                id=uuid.uuid4(),
+                                aggregate_type="scraping_job",
+                                aggregate_id=job_id,
+                                event_type="initial_dispatch",
+                                payload=message.model_dump(mode="json"),
+                                status="pending",
+                                attempts=0,
+                                available_at=job_created_at,
+                                idempotency_key=f"dispatch-{job_id}-1",
+                                created_at=job_created_at,
+                            )
+                            store_tx.add(outbox_entry)
+                        else:
+                            self.queue.send_message("scraping-jobs", message, session=store_tx)
 
                         store_tx.commit()
 
@@ -380,6 +405,15 @@ class DispatchService:
                         job_id = uuid.uuid4()
                         job_created_at = datetime.now(timezone.utc)
 
+                        message = ScrapingMessage(
+                            version=1,
+                            job_id=job_id,
+                            store_id=store.id,
+                            product_ids=product_ids,
+                            requested_at=job_created_at,
+                            attempt=1,
+                        )
+
                         job = ScrapingJob(
                             id=job_id,
                             store_id=store.id,
@@ -389,19 +423,27 @@ class DispatchService:
                             batch_size=len(product_ids),
                             observations_created=0,
                             attempts=0,
+                            payload=message.model_dump(mode="json"),
                             created_at=job_created_at,
                         )
                         store_tx.add(job)
 
-                        message = ScrapingMessage(
-                            version=1,
-                            job_id=job_id,
-                            store_id=store.id,
-                            product_ids=product_ids,
-                            requested_at=job_created_at,
-                            attempt=1,
-                        )
-                        self.queue.send_message("scraping-jobs", message, session=store_tx)
+                        if os.getenv("QUEUE_BACKEND") == "sqs":
+                            outbox_entry = ScrapingOutbox(
+                                id=uuid.uuid4(),
+                                aggregate_type="scraping_job",
+                                aggregate_id=job_id,
+                                event_type="initial_dispatch",
+                                payload=message.model_dump(mode="json"),
+                                status="pending",
+                                attempts=0,
+                                available_at=job_created_at,
+                                idempotency_key=f"dispatch-{job_id}-1",
+                                created_at=job_created_at,
+                            )
+                            store_tx.add(outbox_entry)
+                        else:
+                            self.queue.send_message("scraping-jobs", message, session=store_tx)
 
                         store_tx.commit()
 
@@ -663,6 +705,89 @@ class DispatchService:
                     detail="Rango de fechas inválido: from_date debe ser menor o igual a to_date.",
                 )
 
+        if os.getenv("QUEUE_BACKEND") == "sqs":
+            base_ledger_query = select(ScrapingDlqLedger).where(
+                ScrapingDlqLedger.status.in_(["in_dlq", "replay_pending"])
+            )
+            if store_id:
+                base_ledger_query = base_ledger_query.where(ScrapingDlqLedger.store_id == store_id)
+            if from_date:
+                base_ledger_query = base_ledger_query.where(
+                    ScrapingDlqLedger.sent_to_dlq_at >= from_date
+                )
+            if to_date:
+                base_ledger_query = base_ledger_query.where(
+                    ScrapingDlqLedger.sent_to_dlq_at <= to_date
+                )
+
+            count_stmt = select(func.count()).select_from(base_ledger_query.subquery())
+            total = db.execute(count_stmt).scalar_one()
+
+            total_pages = math.ceil(total / page_size) if total > 0 else 0
+            offset = (page - 1) * page_size
+
+            data_stmt = (
+                base_ledger_query.order_by(
+                    ScrapingDlqLedger.sent_to_dlq_at.desc(), ScrapingDlqLedger.id.desc()
+                )
+                .offset(offset)
+                .limit(page_size)
+            )
+            ledgers = db.execute(data_stmt).scalars().all()
+
+            items: list[DLQMessageItemResponse] = []
+            for entry in ledgers:
+                replayable = True
+                block_reason: str | None = None
+
+                job = db.execute(
+                    select(ScrapingJob).where(ScrapingJob.id == entry.job_id)
+                ).scalar_one_or_none()
+
+                if not job:
+                    replayable = False
+                    block_reason = "SCRAPING_JOB_NOT_FOUND"
+                elif job.status != "dead_letter":
+                    replayable = False
+                    block_reason = f"JOB_STATUS_NOT_REPLAYABLE: {job.status}"
+                elif entry.status != "in_dlq":
+                    replayable = False
+                    block_reason = f"LEDGER_STATUS_NOT_REPLAYABLE: {entry.status}"
+
+                store_name: str | None = None
+                if entry.store_id:
+                    st = db.execute(
+                        select(Store).where(Store.id == entry.store_id)
+                    ).scalar_one_or_none()
+                    if st:
+                        store_name = st.name
+
+                items.append(
+                    DLQMessageItemResponse(
+                        message_id=entry.id,
+                        job_id=entry.job_id,
+                        store_id=entry.store_id,
+                        store_name=store_name,
+                        products_count=entry.products_count,
+                        attempts=entry.attempts,
+                        error_reason=sanitize_error(entry.error_reason),
+                        created_at=entry.created_at,
+                        sent_to_dlq_at=entry.sent_to_dlq_at,
+                        replay_count=entry.replay_count or 0,
+                        replayed_at=entry.replayed_at,
+                        replayable=replayable,
+                        replay_block_reason=sanitize_error(block_reason),
+                    )
+                )
+
+            return DLQMessageListResponse(
+                items=items,
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+            )
+
         effective_date = func.coalesce(
             LocalQueueMessage.sent_to_dlq_at,
             LocalQueueMessage.processed_at,
@@ -820,6 +945,157 @@ class DispatchService:
 
         with self.session_factory() as db:
             try:
+                ledger_count = db.execute(
+                    select(func.count(ScrapingDlqLedger.id)).where(
+                        ScrapingDlqLedger.id.in_(sorted_ids)
+                    )
+                ).scalar_one()
+
+                if os.getenv("QUEUE_BACKEND") == "sqs" or ledger_count > 0:
+                    stmt_ledgers = (
+                        select(ScrapingDlqLedger)
+                        .where(ScrapingDlqLedger.id.in_(sorted_ids))
+                        .order_by(ScrapingDlqLedger.id.asc())
+                        .with_for_update()
+                    )
+                    locked_ledgers = db.execute(stmt_ledgers).scalars().all()
+                    found_ids = {entry.id for entry in locked_ledgers}
+                    missing_ids = set(sorted_ids) - found_ids
+                    if missing_ids:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=(
+                                "Uno o más mensajes no existen: "
+                                f"{[str(i) for i in sorted(missing_ids)]}"
+                            ),
+                        )
+
+                    for entry in locked_ledgers:
+                        if entry.status != "in_dlq":
+                            raise HTTPException(
+                                status_code=status.HTTP_409_CONFLICT,
+                                detail=(
+                                    f"El registro DLQ {entry.id} no se encuentra "
+                                    f"en estado reproducible (actual: '{entry.status}', "
+                                    "esperado: 'in_dlq')."
+                                ),
+                            )
+
+                    # Lock associated ScrapingJobs
+                    job_ids = sorted({entry.job_id for entry in locked_ledgers})
+                    stmt_jobs = (
+                        select(ScrapingJob)
+                        .where(ScrapingJob.id.in_(job_ids))
+                        .order_by(ScrapingJob.id.asc())
+                        .with_for_update()
+                    )
+                    locked_jobs = {j.id: j for j in db.execute(stmt_jobs).scalars().all()}
+
+                    replayed_msg_ids: list[uuid.UUID] = []
+                    replayed_job_ids: list[uuid.UUID] = []
+
+                    for entry in locked_ledgers:
+                        job = locked_jobs.get(entry.job_id)
+                        if not job:
+                            raise HTTPException(
+                                status_code=status.HTTP_409_CONFLICT,
+                                detail=(
+                                    f"El ScrapingJob {entry.job_id} correspondiente "
+                                    f"al registro DLQ {entry.id} no existe."
+                                ),
+                            )
+                        if job.status != "dead_letter":
+                            raise HTTPException(
+                                status_code=status.HTTP_409_CONFLICT,
+                                detail=(
+                                    f"El ScrapingJob {job.id} correspondiente al registro "
+                                    f"DLQ {entry.id} no está en estado reproducible "
+                                    f"(actual: '{job.status}', esperado: 'dead_letter')."
+                                ),
+                            )
+
+                        new_logical_id = uuid.uuid4()
+                        root_logical_id = entry.root_logical_message_id or entry.id
+                        replayed_from_id = entry.id
+
+                        # Extract product_ids from job.payload or StoreProduct
+                        product_ids: list[uuid.UUID] = []
+                        if isinstance(job.payload, dict) and "product_ids" in job.payload:
+                            product_ids = [uuid.UUID(str(p)) for p in job.payload["product_ids"]]
+                        else:
+                            sp_rows = db.execute(
+                                select(StoreProduct.product_id).where(
+                                    StoreProduct.store_id == job.store_id,
+                                    StoreProduct.is_active.is_(True),
+                                )
+                            ).scalars().all()
+                            product_ids = list(sp_rows)
+
+                        new_message = ScrapingMessage(
+                            version=1,
+                            job_id=job.id,
+                            store_id=job.store_id,
+                            product_ids=product_ids,
+                            requested_at=now_utc,
+                            attempt=1,
+                            logical_message_id=new_logical_id,
+                            root_logical_message_id=root_logical_id,
+                            replayed_from_message_id=replayed_from_id,
+                        )
+
+                        # Update job
+                        if job.error_reason:
+                            job.last_dlq_reason = sanitize_error(job.error_reason)
+                        job.status = "queued"
+                        job.replay_count = (job.replay_count or 0) + 1
+                        job.replayed_at = now_utc
+                        job.attempts = 0
+                        job.started_at = None
+                        job.finished_at = None
+                        job.error_reason = None
+                        job.payload = new_message.model_dump(mode="json")
+
+                        # Update ledger to replay_pending
+                        entry.status = "replay_pending"
+                        entry.replay_count = (entry.replay_count or 0) + 1
+                        entry.replayed_at = now_utc
+
+                        # Create outbox row
+                        outbox_entry = ScrapingOutbox(
+                            id=uuid.uuid4(),
+                            aggregate_type="scraping_job",
+                            aggregate_id=job.id,
+                            event_type="replay",
+                            source_ledger_id=entry.id,
+                            payload=new_message.model_dump(mode="json"),
+                            status="pending",
+                            attempts=0,
+                            available_at=now_utc,
+                            idempotency_key=f"replay-{job.id}-{job.replay_count}",
+                            created_at=now_utc,
+                        )
+                        db.add(outbox_entry)
+
+                        replayed_msg_ids.append(entry.id)
+                        if job.id not in replayed_job_ids:
+                            replayed_job_ids.append(job.id)
+
+                    db.commit()
+
+                    logger.info(
+                        "DLQ_REPLAY_SUCCESS (SQS Ledger): count=%d message_ids=%s job_ids=%s",
+                        len(replayed_msg_ids),
+                        [str(i) for i in replayed_msg_ids],
+                        [str(i) for i in replayed_job_ids],
+                    )
+
+                    return DLQReplayResponse(
+                        replayed_count=len(replayed_msg_ids),
+                        message_ids=replayed_msg_ids,
+                        job_ids=replayed_job_ids,
+                        status="accepted",
+                    )
+
                 # 1. Lock messages in deterministic ascending SQL order
                 stmt_msgs = (
                     select(LocalQueueMessage)

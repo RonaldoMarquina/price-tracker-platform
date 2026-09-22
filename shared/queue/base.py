@@ -27,14 +27,12 @@ class BaseQueue(ABC):
         session: Any = None,
     ) -> str:
         """Publish a message to the specified queue. Returns message ID."""
-        pass
 
     @abstractmethod
     def receive_messages(
         self, queue_name: str, max_messages: int = 1, visibility_timeout: int = 30
     ) -> list[QueueMessage]:
         """Claim up to max_messages safely using transaction locking."""
-        pass
 
     @abstractmethod
     def delete_message(
@@ -44,14 +42,12 @@ class BaseQueue(ABC):
         error_reason: str | None = None,
     ) -> None:
         """Acknowledge and mark or delete a message after processing or traceable skip."""
-        pass
 
     @abstractmethod
     def change_message_visibility(
         self, queue_name: str, receipt_handle: str, visibility_timeout: int
     ) -> None:
         """Reset or postpone message visibility for retry or backoff."""
-        pass
 
     @abstractmethod
     def send_to_dlq(
@@ -63,14 +59,11 @@ class BaseQueue(ABC):
         receipt_handle: str | None = None,
     ) -> str:
         """Transfer exhausted or corrupted message to Dead Letter Queue."""
-        pass
 
     @abstractmethod
     def get_queue_size(self, queue_name: str) -> int:
         """Return the number of messages currently visible/available."""
-        pass
 
     @abstractmethod
     def purge_queue(self, queue_name: str) -> None:
         """Purge all messages from the specified queue (testing/cleanup)."""
-        pass

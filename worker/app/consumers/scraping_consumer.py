@@ -161,7 +161,11 @@ class ScrapingConsumer:
         )
 
         with self.session_factory() as db:
-            result = db.execute(select(ScrapingJob).where(ScrapingJob.id == scraping_msg.job_id))
+            result = db.execute(
+                select(ScrapingJob)
+                .where(ScrapingJob.id == scraping_msg.job_id)
+                .with_for_update()
+            )
             job = result.scalar_one_or_none()
             if not isinstance(job, ScrapingJob):
                 job = None
@@ -184,6 +188,7 @@ class ScrapingConsumer:
                     batch_size=len(scraping_msg.product_ids),
                     observations_created=0,
                     attempts=attempts,
+                    payload=scraping_msg.model_dump(mode="json"),
                     created_at=scraping_msg.requested_at or now,
                     started_at=now,
                 )
@@ -191,21 +196,38 @@ class ScrapingConsumer:
                 db.commit()
                 db.refresh(job)
             else:
-                # If already in terminal completed state, acknowledge idempotently
-                if job.status == "completed":
+                # If already in terminal completed/skipped state, acknowledge idempotently
+                if job.status in ["completed", "skipped"]:
                     logger.info(
-                        "JOB_ALREADY_COMPLETED: job_id=%s store_id=%s attempt=%d",
+                        "JOB_ALREADY_TERMINAL: job_id=%s store_id=%s attempt=%d status=%s",
                         str(scraping_msg.job_id),
                         str(scraping_msg.store_id),
                         attempts,
+                        job.status,
                     )
                     self.queue.delete_message(self.queue_name, msg.receipt_handle)
                     return True
 
+                # Check if another worker is actively processing this job
+                if job.status == "processing" and job.started_at:
+                    elapsed = (now - job.started_at).total_seconds()
+                    if elapsed < self.visibility_timeout:
+                        logger.warning(
+                            "JOB_CONCURRENT_PROCESSING: job_id=%s already processing "
+                            "(elapsed=%.1fs < %ds)",
+                            str(scraping_msg.job_id),
+                            elapsed,
+                            self.visibility_timeout,
+                        )
+                        return True
+
                 is_recovery = job.status == "processing"
                 job.attempts = attempts
+                if not job.payload:
+                    job.payload = scraping_msg.model_dump(mode="json")
                 transition_job_status(job, "processing", is_recovery=is_recovery)
                 db.commit()
+
 
             try:
                 inserted_count = self.service.process_job(db=db, message=scraping_msg)

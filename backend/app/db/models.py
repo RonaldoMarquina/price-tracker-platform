@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Any
 
 from shared.queue.models import LocalQueueMessage  # noqa: F401
 from sqlalchemy import (
@@ -20,6 +21,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -260,8 +262,212 @@ class ScrapingJob(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     store: Mapped["Store"] = relationship("Store", back_populates="scraping_jobs")
+    dlq_ledger_entries: Mapped[list["ScrapingDlqLedger"]] = relationship(
+        "ScrapingDlqLedger", back_populates="job"
+    )
+    outbox_entries: Mapped[list["ScrapingOutbox"]] = relationship(
+        "ScrapingOutbox", back_populates="job"
+    )
 
     def __repr__(self) -> str:
         return f"<ScrapingJob(id='{self.id}', store_id='{self.store_id}', status='{self.status}')>"
+
+
+class ScrapingQuarantine(Base):
+    """Registro de cuarentena para mensajes DLQ con payload corrupto o job inexistente."""
+
+    __tablename__ = "scraping_quarantine"
+    __table_args__ = (
+        CheckConstraint(
+            "quarantine_type IN ('invalid_payload', 'missing_job', 'orphaned_message')",
+            name="ck_scraping_quarantine_type",
+        ),
+        CheckConstraint(
+            "status IN ('quarantined', 'reviewed', 'discarded')",
+            name="ck_scraping_quarantine_status",
+        ),
+        CheckConstraint("attempts >= 1", name="ck_scraping_quarantine_attempts_positive"),
+        Index("ix_scraping_quarantine_status_received", "status", text("received_at DESC")),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider_message_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    body_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    error_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    quarantine_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), default="quarantined", server_default=text("'quarantined'"), nullable=False
+    )
+    attempts: Mapped[int] = mapped_column(
+        Integer, default=1, server_default=text("1"), nullable=False
+    )
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    def __repr__(self) -> str:
+        return f"<ScrapingQuarantine(id='{self.id}', status='{self.status}')>"
+
+
+class ScrapingDlqLedger(Base):
+    """Ledger operativo canónico de auditoría de mensajes en Dead Letter Queue."""
+
+    __tablename__ = "scraping_dlq_ledger"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('in_dlq', 'replay_pending', 'replayed', 'discarded')",
+            name="ck_scraping_dlq_ledger_status",
+        ),
+        CheckConstraint(
+            "products_count >= 0", name="ck_scraping_dlq_ledger_products_count_non_negative"
+        ),
+        CheckConstraint("attempts >= 0", name="ck_scraping_dlq_ledger_attempts_non_negative"),
+        CheckConstraint(
+            "replay_count >= 0", name="ck_scraping_dlq_ledger_replay_count_non_negative"
+        ),
+        Index("ix_scraping_dlq_ledger_status_sent_at", "status", text("sent_to_dlq_at DESC")),
+        Index("ix_scraping_dlq_ledger_job_id", "job_id"),
+        Index("ix_scraping_dlq_ledger_root_id", "root_logical_message_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    root_logical_message_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    replayed_from_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("scraping_jobs.id", ondelete="RESTRICT"), nullable=False
+    )
+    store_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False
+    )
+    store_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    products_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    error_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_to_dlq_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), default="in_dlq", server_default=text("'in_dlq'"), nullable=False
+    )
+    replay_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    replayed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    job: Mapped["ScrapingJob"] = relationship("ScrapingJob", back_populates="dlq_ledger_entries")
+    store: Mapped["Store"] = relationship("Store")
+    outbox_entries: Mapped[list["ScrapingOutbox"]] = relationship(
+        "ScrapingOutbox", back_populates="source_ledger"
+    )
+
+    def __repr__(self) -> str:
+        return f"<ScrapingDlqLedger(id='{self.id}', status='{self.status}')>"
+
+
+class ScrapingOutbox(Base):
+    """Transactional outbox para publicación confiable y desacoplada hacia SQS."""
+
+    __tablename__ = "scraping_outbox"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'publishing', 'published', 'failed', 'exhausted')",
+            name="ck_scraping_outbox_status",
+        ),
+        CheckConstraint(
+            "event_type IN ('initial_dispatch', 'replay')", name="ck_scraping_outbox_event_type"
+        ),
+        CheckConstraint("attempts >= 0", name="ck_scraping_outbox_attempts_non_negative"),
+        CheckConstraint(
+            "lease_until IS NULL OR locked_at IS NULL OR lease_until >= locked_at",
+            name="ck_scraping_outbox_lease_coherence",
+        ),
+        CheckConstraint(
+            "(event_type = 'replay' AND source_ledger_id IS NOT NULL) "
+            "OR (event_type = 'initial_dispatch' AND source_ledger_id IS NULL)",
+            name="ck_scraping_outbox_source_ledger_coherence",
+        ),
+        UniqueConstraint("idempotency_key", name="uq_scraping_outbox_idempotency_key"),
+        Index(
+            "ix_scraping_outbox_claim",
+            "status",
+            "available_at",
+            "attempts",
+            postgresql_where=text("status IN ('pending', 'failed', 'publishing')"),
+        ),
+        Index("ix_scraping_outbox_aggregate_id", "aggregate_id"),
+        Index("ix_scraping_outbox_source_ledger_id", "source_ledger_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    aggregate_type: Mapped[str] = mapped_column(
+        String(50), default="scraping_job", server_default=text("'scraping_job'"), nullable=False
+    )
+    aggregate_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("scraping_jobs.id", ondelete="RESTRICT"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(
+        String(30),
+        default="initial_dispatch",
+        server_default=text("'initial_dispatch'"),
+        nullable=False,
+    )
+    source_ledger_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("scraping_dlq_ledger.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    queue_name: Mapped[str] = mapped_column(
+        String(80), default="scraping-jobs", server_default=text("'scraping-jobs'"), nullable=False
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending", server_default=text("'pending'"), nullable=False
+    )
+    attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )
+    locked_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    provider_message_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    job: Mapped["ScrapingJob"] = relationship("ScrapingJob", back_populates="outbox_entries")
+    source_ledger: Mapped["ScrapingDlqLedger | None"] = relationship(
+        "ScrapingDlqLedger", back_populates="outbox_entries"
+    )
+
+    def __repr__(self) -> str:
+        return f"<ScrapingOutbox(id='{self.id}', status='{self.status}')>"
