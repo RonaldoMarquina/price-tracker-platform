@@ -78,3 +78,9 @@ variable "bucket_suffix" {
   type        = string
   default     = "demo-assets"
 }
+
+variable "internal_api_key_secret_arn" {
+  description = "ARN of the AWS Secrets Manager secret storing the internal API key"
+  type        = string
+  default     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:price-tracker/internal-api-key-demo"
+}

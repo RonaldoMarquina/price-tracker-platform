@@ -17,7 +17,7 @@ from app.db.session import SessionLocal
 from app.main import app
 
 client = TestClient(app)
-VALID_TOKEN = os.getenv("INTERNAL_API_KEY", "dev-internal-secret-token")
+VALID_TOKEN = os.getenv("INTERNAL_API_KEY", "test-internal-secret-token-for-pytest-execution")
 AUTH_HEADERS = {"Authorization": f"Bearer {VALID_TOKEN}"}
 
 

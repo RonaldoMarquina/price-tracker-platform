@@ -36,7 +36,7 @@ services:
       ENVIRONMENT: development
       DEBUG: "true"
       CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-secret-token}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY must be set}
       PYTHONPATH: "/app"
     ports:
       - "8000:8000"

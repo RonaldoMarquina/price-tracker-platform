@@ -149,10 +149,13 @@ resource "aws_iam_role_policy" "ecs_execution" {
         Resource = "${aws_cloudwatch_log_group.ecs.arn}:*"
       },
       {
-        Sid      = "SecretsManagerRDS"
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [var.master_user_secret_arn]
+        Sid    = "SecretsManagerAccess"
+        Effect = "Allow"
+        Action = ["secretsmanager:GetSecretValue"]
+        Resource = [
+          var.master_user_secret_arn,
+          var.internal_api_key_secret_arn
+        ]
       }
     ]
   })
@@ -377,6 +380,10 @@ resource "aws_ecs_task_definition" "backend_api" {
         {
           name      = "DB_PASSWORD"
           valueFrom = "${var.master_user_secret_arn}:password::"
+        },
+        {
+          name      = "INTERNAL_API_KEY"
+          valueFrom = var.internal_api_key_secret_arn
         }
       ]
       logConfiguration = {

@@ -75,7 +75,7 @@ def test_compute_task_images_and_entrypoints_separation():
     assert 'resource "aws_ecs_task_definition" "outbox_publisher"' in compute_tf
     outbox_pattern = (
         r'resource "aws_ecs_task_definition" "outbox_publisher"'
-        r'.*?container_definitions\s*=\s*jsonencode\(\[(.*?)\]\)'
+        r".*?container_definitions\s*=\s*jsonencode\(\[(.*?)\]\)"
     )
     outbox_block = re.search(outbox_pattern, compute_tf, re.DOTALL)
     assert outbox_block is not None
@@ -87,7 +87,7 @@ def test_compute_task_images_and_entrypoints_separation():
     assert 'resource "aws_ecs_task_definition" "dlq_indexer"' in compute_tf
     dlq_pattern = (
         r'resource "aws_ecs_task_definition" "dlq_indexer"'
-        r'.*?container_definitions\s*=\s*jsonencode\(\[(.*?)\]\)'
+        r".*?container_definitions\s*=\s*jsonencode\(\[(.*?)\]\)"
     )
     dlq_block = re.search(dlq_pattern, compute_tf, re.DOTALL)
     assert dlq_block is not None
@@ -98,7 +98,7 @@ def test_compute_task_images_and_entrypoints_separation():
     # 3. Dispatcher uses backend image with --once
     disp_pattern = (
         r'resource "aws_ecs_task_definition" "dispatcher"'
-        r'.*?container_definitions\s*=\s*jsonencode\(\[(.*?)\]\)'
+        r".*?container_definitions\s*=\s*jsonencode\(\[(.*?)\]\)"
     )
     disp_block = re.search(disp_pattern, compute_tf, re.DOTALL)
     assert disp_block is not None
@@ -116,7 +116,7 @@ def test_compute_tasks_inject_secrets_via_ecs_secrets():
 
     # Verify none of the task definitions pass password as plaintext environment variable
     assert 'value = "password"' not in compute_tf
-    assert 'value = var.master_user_secret_arn' not in compute_tf
+    assert "value = var.master_user_secret_arn" not in compute_tf
 
 
 def test_iam_no_invalid_sqs_send_message_batch_action():
@@ -156,9 +156,9 @@ def test_cloudfront_api_behavior_no_caching_and_header_forwarding():
 def test_cloudfront_spa_routing_fallbacks():
     """Requirement: CloudFront must route 403 and 404 to /index.html with status 200 for SPA."""
     storage_tf = (TF_DIR / "modules" / "storage" / "main.tf").read_text(encoding="utf-8")
-    assert 'error_code            = 403' in storage_tf
-    assert 'error_code            = 404' in storage_tf
-    assert 'response_code         = 200' in storage_tf
+    assert "error_code            = 403" in storage_tf
+    assert "error_code            = 404" in storage_tf
+    assert "response_code         = 200" in storage_tf
     assert 'response_page_path    = "/index.html"' in storage_tf
 
 
@@ -186,8 +186,10 @@ def test_dispatcher_once_flag_execution():
     """Requirement: Dispatcher must support --once mode and terminate cleanly."""
     from app.dispatcher import main as dispatcher_main
 
-    with patch("sys.argv", ["dispatcher.py", "--once"]), \
-         patch("app.dispatcher.DispatchService") as mock_service_cls:
+    with (
+        patch("sys.argv", ["dispatcher.py", "--once"]),
+        patch("app.dispatcher.DispatchService") as mock_service_cls,
+    ):
         mock_instance = MagicMock()
         mock_result = MagicMock()
         mock_result.skipped_lock = False
@@ -233,20 +235,23 @@ def test_discrete_database_env_vars_in_all_task_definitions():
 def test_sqs_task_definitions_variables():
     """Requirement: Worker, Outbox, and DLQ Indexer receive SQS URLs and regions."""
     compute_tf = (TF_DIR / "modules" / "compute" / "main.tf").read_text(encoding="utf-8")
-    assert 'name = "AWS_REGION"' in compute_tf or 'AWS_REGION' in compute_tf
-    assert 'name = "SCRAPING_QUEUE_URL"' in compute_tf or 'SCRAPING_QUEUE_URL' in compute_tf
-    assert 'name = "SCRAPING_DLQ_URL"' in compute_tf or 'SCRAPING_DLQ_URL' in compute_tf
+    assert 'name = "AWS_REGION"' in compute_tf or "AWS_REGION" in compute_tf
+    assert 'name = "SCRAPING_QUEUE_URL"' in compute_tf or "SCRAPING_QUEUE_URL" in compute_tf
+    assert 'name = "SCRAPING_DLQ_URL"' in compute_tf or "SCRAPING_DLQ_URL" in compute_tf
 
 
 def test_api_documentation_disabled_in_production():
     """Requirement: /docs, /redoc, /openapi.json must return 404 in production."""
     from fastapi.testclient import TestClient
 
-    with patch("app.core.config.settings.ENVIRONMENT", "production"), \
-         patch("app.core.config.settings.DOCS_ENABLED", False):
+    with (
+        patch("app.core.config.settings.ENVIRONMENT", "production"),
+        patch("app.core.config.settings.DOCS_ENABLED", False),
+    ):
         import importlib
 
         import app.main
+
         importlib.reload(app.main)
 
         prod_client = TestClient(app.main.app)
@@ -255,8 +260,10 @@ def test_api_documentation_disabled_in_production():
         assert prod_client.get("/openapi.json").status_code == 404
 
         # Reload back to development for subsequent tests
-        with patch("app.core.config.settings.ENVIRONMENT", "development"), \
-             patch("app.core.config.settings.DOCS_ENABLED", True):
+        with (
+            patch("app.core.config.settings.ENVIRONMENT", "development"),
+            patch("app.core.config.settings.DOCS_ENABLED", True),
+        ):
             importlib.reload(app.main)
 
 
@@ -302,10 +309,13 @@ def test_sqs_queue_reads_env_queue_urls():
     from shared.queue.sqs import SqsQueue
 
     mock_client = MagicMock()
-    with patch.dict(os.environ, {
-        "SCRAPING_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/123/main",
-        "SCRAPING_DLQ_URL": "https://sqs.us-east-1.amazonaws.com/123/dlq",
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "SCRAPING_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/123/main",
+            "SCRAPING_DLQ_URL": "https://sqs.us-east-1.amazonaws.com/123/dlq",
+        },
+    ):
         q = SqsQueue(client=mock_client)
         assert q.get_queue_url("scraping-jobs") == "https://sqs.us-east-1.amazonaws.com/123/main"
         assert q.get_queue_url("scraping-jobs-dlq") == "https://sqs.us-east-1.amazonaws.com/123/dlq"
@@ -557,3 +567,168 @@ def test_suite_aborts_if_database_url_points_to_development():
     output = result.stderr + result.stdout
     assert "ABORTING TEST EXECUTION" in output
     assert "price_tracker" in output
+
+
+def test_backend_settings_fails_when_internal_api_key_missing():
+    """Requirement: Backend settings must fail initialization if INTERNAL_API_KEY is missing."""
+    import os
+    from unittest.mock import patch
+
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("INTERNAL_API_KEY", None)
+        try:
+            Settings()
+            assert False, "Settings must fail initialization when INTERNAL_API_KEY is missing"
+        except (ValidationError, ValueError) as exc:
+            assert "INTERNAL_API_KEY" in str(exc) or "Field required" in str(exc)
+
+
+def test_backend_settings_production_rejects_insecure_and_example_keys():
+    """Requirement: In production, settings rejects previous token, empty values, and examples."""
+    import os
+    from unittest.mock import patch
+
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    insecure_keys = [
+        "",
+        "   ",
+        "dev-internal-secret-token",
+        "replace-with-a-random-secret-of-at-least-32-characters",
+        "changeme",
+        "secret",
+        "password",
+        "admin",
+        "some-example-key-with-enough-length-1234567890",
+    ]
+
+    for key in insecure_keys:
+        with patch.dict(
+            os.environ, {"ENVIRONMENT": "production", "INTERNAL_API_KEY": key}, clear=False
+        ):
+            try:
+                Settings()
+                assert False, f"Production settings must reject insecure key: {key!r}"
+            except (ValidationError, ValueError) as exc:
+                assert (
+                    "INTERNAL_API_KEY cannot be empty" in str(exc)
+                    or "Insecure default or example INTERNAL_API_KEY is rejected" in str(exc)
+                    or "INTERNAL_API_KEY must be at least 32 characters" in str(exc)
+                )
+
+
+def test_backend_settings_production_rejects_short_keys():
+    """Requirement: Production environment rejects INTERNAL_API_KEY shorter than 32 characters."""
+    import os
+    from unittest.mock import patch
+
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    short_keys = [
+        "short",
+        "a" * 16,
+        "a" * 31,
+    ]
+
+    for key in short_keys:
+        with patch.dict(
+            os.environ, {"ENVIRONMENT": "production", "INTERNAL_API_KEY": key}, clear=False
+        ):
+            try:
+                Settings()
+                assert False, f"Production settings must reject short key of length {len(key)}"
+            except (ValidationError, ValueError) as exc:
+                assert "at least 32 characters" in str(exc)
+
+
+def test_backend_settings_valid_32_plus_char_key_accepted():
+    """Requirement: A valid key of 32 or more characters is accepted in production."""
+    import os
+    from unittest.mock import patch
+
+    from app.core.config import Settings
+
+    valid_key = "a" * 32
+    with patch.dict(
+        os.environ, {"ENVIRONMENT": "production", "INTERNAL_API_KEY": valid_key}, clear=False
+    ):
+        settings = Settings()
+        assert settings.INTERNAL_API_KEY.get_secret_value() == valid_key
+
+
+def test_docker_compose_no_secret_fallback():
+    """Requirement: Docker Compose must not contain any default fallback for INTERNAL_API_KEY."""
+    compose_path = REPO_ROOT / "docker-compose.yml"
+    assert compose_path.is_file()
+    content = compose_path.read_text(encoding="utf-8")
+
+    assert "dev-internal-secret-token" not in content
+    assert "INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY must be set}" in content
+    assert "INTERNAL_API_KEY:-" not in content
+
+
+def test_terraform_references_secrets_manager_without_plaintext_secret():
+    """Requirement: Terraform references Secrets Manager for INTERNAL_API_KEY without plaintext."""
+    compute_tf = (TF_DIR / "modules" / "compute" / "main.tf").read_text(encoding="utf-8")
+    compute_vars = (TF_DIR / "modules" / "compute" / "variables.tf").read_text(encoding="utf-8")
+    root_vars = (TF_DIR / "variables.tf").read_text(encoding="utf-8")
+    root_tf = (TF_DIR / "main.tf").read_text(encoding="utf-8")
+
+    assert "internal_api_key_secret_arn" in compute_vars
+    assert "internal_api_key_secret_arn" in root_vars
+    assert "internal_api_key_secret_arn" in root_tf
+
+    pattern = (
+        r'resource "aws_ecs_task_definition" "backend_api"'
+        r".*?container_definitions\s*=\s*jsonencode\(\[(.*?)\]\)"
+    )
+    backend_task_match = re.search(
+        pattern,
+        compute_tf,
+        re.DOTALL,
+    )
+    assert backend_task_match is not None
+    container_def = backend_task_match.group(1)
+
+    assert '"INTERNAL_API_KEY"' in container_def
+    assert "valueFrom = var.internal_api_key_secret_arn" in container_def
+    assert "dev-internal-secret-token" not in compute_tf
+    assert "dev-internal-secret-token" not in root_tf
+
+    assert "var.internal_api_key_secret_arn" in compute_tf
+
+
+def test_internal_api_key_never_leaks_in_repr_or_settings_serialization():
+    """Requirement: INTERNAL_API_KEY representation never appears in repr, str, or logging."""
+    import os
+    from unittest.mock import patch
+
+    from app.core.config import Settings
+
+    raw_secret = "sensitive_entropy_token_for_leak_check_99999"
+    with patch.dict(os.environ, {"INTERNAL_API_KEY": raw_secret}, clear=False):
+        settings = Settings()
+        assert raw_secret not in repr(settings)
+        assert raw_secret not in str(settings)
+        assert raw_secret not in repr(settings.INTERNAL_API_KEY)
+        assert raw_secret not in str(settings.INTERNAL_API_KEY)
+        assert str(settings.INTERNAL_API_KEY) == "**********"
+
+
+def test_tests_configure_isolated_key_before_app_import():
+    """Requirement: Test conftests set their own isolated INTERNAL_API_KEY before app import."""
+    backend_conftest = (REPO_ROOT / "backend" / "tests" / "conftest.py").read_text(encoding="utf-8")
+    worker_conftest = (REPO_ROOT / "worker" / "tests" / "conftest.py").read_text(encoding="utf-8")
+
+    assert "INTERNAL_API_KEY" in backend_conftest
+    assert "INTERNAL_API_KEY" in worker_conftest
+    assert "dev-internal-secret-token" not in backend_conftest
+    assert "dev-internal-secret-token" not in worker_conftest

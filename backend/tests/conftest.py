@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 os.environ.setdefault(
     "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/price_tracker_test"
 )
+os.environ.setdefault("INTERNAL_API_KEY", "test-internal-secret-token-for-pytest-execution")
+
 
 db_url = os.environ.get("DATABASE_URL", "")
 parsed = urlparse(db_url)

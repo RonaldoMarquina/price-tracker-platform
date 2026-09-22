@@ -1,6 +1,7 @@
 import os
 from urllib.parse import quote
 
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,7 +16,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     DOCS_ENABLED: bool = True
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
-    INTERNAL_API_KEY: str = "dev-internal-secret-token"
+    INTERNAL_API_KEY: SecretStr
 
     # Discrete database connection parameters for secure ECS container runtime
     DB_HOST: str | None = None
@@ -29,6 +30,36 @@ class Settings(BaseSettings):
     POSTGRES_USER: str | None = None
 
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/price_tracker"
+
+    @model_validator(mode="after")
+    def validate_security_settings(self) -> "Settings":
+        """Enforce strict security validation for internal API keys."""
+        secret_value = self.INTERNAL_API_KEY.get_secret_value().strip()
+        if not secret_value:
+            raise ValueError("INTERNAL_API_KEY cannot be empty or whitespace.")
+
+        known_insecure_examples = {
+            "dev-internal-secret-token",
+            "replace-with-a-random-secret-of-at-least-32-characters",
+            "changeme",
+            "secret",
+            "password",
+            "admin",
+        }
+        if self.ENVIRONMENT.lower() == "production":
+            if (
+                secret_value.lower() in known_insecure_examples
+                or "example" in secret_value.lower()
+                or "secret-token" in secret_value.lower()
+            ):
+                raise ValueError(
+                    "Insecure default or example INTERNAL_API_KEY is rejected in production."
+                )
+            if len(secret_value) < 32:
+                raise ValueError(
+                    "INTERNAL_API_KEY must be at least 32 characters in length in production."
+                )
+        return self
 
     def __init__(self, **values):
         super().__init__(**values)
@@ -59,9 +90,7 @@ class Settings(BaseSettings):
         if url_in_env and not kwargs_has_db:
             return
 
-        env_has_db = any(
-            k in os.environ and bool(os.environ[k].strip()) for k in discrete_fields
-        )
+        env_has_db = any(k in os.environ and bool(os.environ[k].strip()) for k in discrete_fields)
         has_discrete = kwargs_has_db or env_has_db
 
         if has_discrete:

@@ -100,7 +100,7 @@ def test_create_job_store_not_found() -> None:
     fake_store_id = uuid.uuid4()
     response = client.post(
         "/api/v1/scraping/jobs",
-        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY}"},
+        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY.get_secret_value()}"},
         json={"store_id": str(fake_store_id), "product_ids": [str(product.id)]},
     )
     assert response.status_code == 404
@@ -114,7 +114,7 @@ def test_create_job_product_not_found() -> None:
     fake_product_id = uuid.uuid4()
     response = client.post(
         "/api/v1/scraping/jobs",
-        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY}"},
+        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY.get_secret_value()}"},
         json={"store_id": str(store.id), "product_ids": [str(fake_product_id)]},
     )
     assert response.status_code == 404
@@ -127,7 +127,7 @@ def test_create_job_empty_product_ids_validation_error() -> None:
     store, _ = get_or_create_test_entities()
     response = client.post(
         "/api/v1/scraping/jobs",
-        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY}"},
+        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY.get_secret_value()}"},
         json={"store_id": str(store.id), "product_ids": []},
     )
     assert response.status_code == 422
@@ -138,7 +138,7 @@ def test_create_job_success_enqueues_and_returns_202() -> None:
     store, product = get_or_create_test_entities()
     response = client.post(
         "/api/v1/scraping/jobs",
-        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY}"},
+        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY.get_secret_value()}"},
         json={"store_id": str(store.id), "product_ids": [str(product.id)]},
     )
     assert response.status_code == 202

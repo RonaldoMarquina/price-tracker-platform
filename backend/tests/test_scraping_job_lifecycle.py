@@ -88,7 +88,7 @@ def test_create_job_endpoint_persists_queued_job_and_queue_message():
 
     response = client.post(
         "/api/v1/scraping/jobs",
-        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY}"},
+        headers={"Authorization": f"Bearer {settings.INTERNAL_API_KEY.get_secret_value()}"},
         json={"store_id": str(store_id), "product_ids": [str(product_id)]},
     )
     assert response.status_code == 202

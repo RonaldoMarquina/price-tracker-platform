@@ -39,7 +39,7 @@ from app.db.session import SessionLocal
 from app.repositories.observation_repository import ObservationRepository
 from app.services.scraping_service import ScrapingWorkerService
 
-INTERNAL_API_KEY = "dev-internal-secret-token"
+INTERNAL_API_KEY = "test-internal-secret-token-for-pytest-execution"
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "computershop"
 
 

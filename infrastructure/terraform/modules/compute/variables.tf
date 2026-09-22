@@ -109,3 +109,8 @@ variable "x_origin_verify_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "internal_api_key_secret_arn" {
+  description = "ARN of the AWS Secrets Manager secret storing the internal API key"
+  type        = string
+}
