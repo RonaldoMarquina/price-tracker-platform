@@ -78,8 +78,6 @@ def seed_canonical_catalog(
             existing.domain = store_data["domain"]
             existing.is_active = is_active
             stores_map[existing.domain] = existing
-            if existing.name == "Memory Kings":
-                stores_map["memorykings.com.pe"] = existing
 
     # 3. Products across all 6 core categories
     products_data = [
@@ -267,12 +265,6 @@ def seed_canonical_catalog(
             "external_sku": "SKU-RYZEN-5800X-IMP",
         },
         {
-            "product_slug": "amd-ryzen-7-5800x",
-            "store_domain": "memorykings.com.pe",
-            "product_url": "https://www.memorykings.com.pe/producto/amd-ryzen-7-5800x",
-            "external_sku": "MK-5800X-BOX",
-        },
-        {
             "product_slug": "intel-core-i7-14700k",
             "store_domain": "impacto.com.pe",
             "product_url": "https://www.impacto.com.pe/producto/intel-core-i7-14700k",
@@ -285,28 +277,10 @@ def seed_canonical_catalog(
             "external_sku": "SKU-RTX-4070-IMP",
         },
         {
-            "product_slug": "nvidia-geforce-rtx-4070",
-            "store_domain": "memorykings.com.pe",
-            "product_url": "https://www.memorykings.com.pe/producto/nvidia-geforce-rtx-4070",
-            "external_sku": "MK-RTX-4070-12G",
-        },
-        {
             "product_slug": "kingston-fury-beast-ddr5-32gb",
             "store_domain": "impacto.com.pe",
             "product_url": "https://www.impacto.com.pe/producto/kingston-fury-ddr5-32gb",
             "external_sku": "SKU-KF560C36BBEK2-32",
-        },
-        {
-            "product_slug": "kingston-fury-beast-ddr5-32gb",
-            "store_domain": "memorykings.com.pe",
-            "product_url": "https://www.memorykings.com.pe/producto/kingston-fury-beast-ddr5-32gb",
-            "external_sku": "MK-DDR5-32GB-FURY",
-        },
-        {
-            "product_slug": "corsair-vengeance-lpx-ddr4-16gb",
-            "store_domain": "memorykings.com.pe",
-            "product_url": "https://www.memorykings.com.pe/producto/corsair-vengeance-ddr4-16gb",
-            "external_sku": "MK-CORSAIR-16GB-LPX",
         },
         {
             "product_slug": "asus-rog-strix-b650-a-gaming-wifi",
@@ -315,22 +289,10 @@ def seed_canonical_catalog(
             "external_sku": "SKU-ROG-B650-A",
         },
         {
-            "product_slug": "msi-mag-b760-tomahawk-wifi",
-            "store_domain": "memorykings.com.pe",
-            "product_url": "https://www.memorykings.com.pe/producto/msi-mag-b760-tomahawk",
-            "external_sku": "MK-MSI-B760-TOM",
-        },
-        {
             "product_slug": "corsair-rm850e-850w-80-plus-gold",
             "store_domain": "impacto.com.pe",
             "product_url": "https://www.impacto.com.pe/producto/corsair-rm850e-850w",
             "external_sku": "SKU-RM850E-GOLD",
-        },
-        {
-            "product_slug": "nzxt-kraken-240-rgb-refrigeracion-liquida",
-            "store_domain": "memorykings.com.pe",
-            "product_url": "https://www.memorykings.com.pe/producto/nzxt-kraken-240-rgb",
-            "external_sku": "MK-NZXT-KRAKEN-240",
         },
         {
             "product_slug": "deepcool-ak620-refrigeracion-por-aire",
@@ -355,6 +317,12 @@ def seed_canonical_catalog(
             "store_domain": "necs.pe",
             "product_url": "https://necs.pe/products/10744",
             "external_sku": "1414",
+        },
+        {
+            "product_slug": "asus-vy279hgr-27-ips",
+            "store_domain": "sercoplus.com",
+            "product_url": "https://sercoplus.com/monitores-25-28/643846-monitor-asus-vy279hgr-27-ips-fhd-120.html",
+            "external_sku": "081040182",
         },
         {
             "product_slug": "asus-vy279hgr-27-ips",
@@ -402,7 +370,7 @@ def seed_canonical_catalog(
             "product_slug": "kingston-datatraveler-exodia-m-64gb",
             "store_domain": "necs.pe",
             "product_url": "https://necs.pe/products/3849",
-            "external_sku": "1190",
+            "external_sku": "0869",
         },
         {
             "product_slug": "kingston-datatraveler-exodia-m-64gb",
@@ -410,11 +378,14 @@ def seed_canonical_catalog(
             "product_url": "https://computershopperu.com/producto/memoria-usb/29942-memoria-usb-64gb-kingston-datatraveler-exodia-m-azul-version-32-pnkc-u2l64-7lb.html",
             "external_sku": "302900002",
         },
+        # Disabled due to commercial price anomaly (KF552C40BBA-32 published
+        # at $499 USD / S/ 1,711.57) pending verification before activation.
         {
             "product_slug": "kingston-fury-beast-rgb-ddr5-32gb-5200mhz",
             "store_domain": "computershopperu.com",
             "product_url": "https://computershopperu.com/producto/memoria-ram-ddr5-pc/24247-memoria-32gb-ddr5-kingston-fury-beast-rgb-black-bus-5200mhz-pnkf552c40bba-32.html",
             "external_sku": "271129008",
+            "is_active": False,
         },
         {
             "product_slug": "deepcool-ak620-digital-se-argb-black",
@@ -432,7 +403,7 @@ def seed_canonical_catalog(
             "product_slug": "kingston-datatraveler-exodia-m-64gb",
             "store_domain": "cyccomputer.pe",
             "product_url": "https://cyccomputer.pe/producto/memorias-usb/26549-memoria-usb-64gb-kingston-data-traveler-exodia-m-blue-black-v-32-pndtxm64gb.html",
-            "external_sku": "20110KG0959",
+            "external_sku": "16066KG0205",
         },
     ]
     store_products_map: dict[tuple[str, str], StoreProduct] = {}
@@ -446,19 +417,24 @@ def seed_canonical_catalog(
                 StoreProduct.product_url == sp_data["product_url"],
             )
         ).first()
+        is_active = sp_data.get("is_active", True)
         if not existing:
             sp = StoreProduct(
                 product_id=prod.id,
                 store_id=store.id,
                 product_url=sp_data["product_url"],
                 external_sku=sp_data["external_sku"],
-                is_active=True,
+                is_active=is_active,
             )
             db.add(sp)
             db.flush()
             store_products_map[(sp_data["product_slug"], sp_data["store_domain"])] = sp
             counts["store_products"] += 1
         else:
+            if existing.external_sku != sp_data["external_sku"]:
+                existing.external_sku = sp_data["external_sku"]
+            if existing.is_active != is_active:
+                existing.is_active = is_active
             store_products_map[(sp_data["product_slug"], sp_data["store_domain"])] = existing
 
     return counts, store_products_map
@@ -484,15 +460,6 @@ def seed_demo_observations(
             "captured_at": datetime(2026, 9, 18, 10, 0, 0, tzinfo=timezone.utc),
         },
         {
-            "product_slug": "amd-ryzen-7-5800x",
-            "store_domain": "memorykings.com.pe",
-            "price": Decimal("820.00"),
-            "currency": "PEN",
-            "availability": "in_stock",
-            "source_hash": "a1b2c3d4e5f60002",
-            "captured_at": datetime(2026, 9, 18, 10, 5, 0, tzinfo=timezone.utc),
-        },
-        {
             "product_slug": "intel-core-i7-14700k",
             "store_domain": "impacto.com.pe",
             "price": Decimal("1720.00"),
@@ -511,15 +478,6 @@ def seed_demo_observations(
             "captured_at": datetime(2026, 9, 18, 10, 10, 0, tzinfo=timezone.utc),
         },
         {
-            "product_slug": "nvidia-geforce-rtx-4070",
-            "store_domain": "memorykings.com.pe",
-            "price": Decimal("2499.00"),
-            "currency": "PEN",
-            "availability": "in_stock",
-            "source_hash": "a1b2c3d4e5f60011",
-            "captured_at": datetime(2026, 9, 18, 10, 12, 0, tzinfo=timezone.utc),
-        },
-        {
             "product_slug": "kingston-fury-beast-ddr5-32gb",
             "store_domain": "impacto.com.pe",
             "price": Decimal("489.00"),
@@ -527,24 +485,6 @@ def seed_demo_observations(
             "availability": "in_stock",
             "source_hash": "a1b2c3d4e5f60004",
             "captured_at": datetime(2026, 9, 18, 10, 15, 0, tzinfo=timezone.utc),
-        },
-        {
-            "product_slug": "kingston-fury-beast-ddr5-32gb",
-            "store_domain": "memorykings.com.pe",
-            "price": Decimal("510.00"),
-            "currency": "PEN",
-            "availability": "in_stock",
-            "source_hash": "a1b2c3d4e5f60012",
-            "captured_at": datetime(2026, 9, 18, 10, 18, 0, tzinfo=timezone.utc),
-        },
-        {
-            "product_slug": "corsair-vengeance-lpx-ddr4-16gb",
-            "store_domain": "memorykings.com.pe",
-            "price": Decimal("185.00"),
-            "currency": "PEN",
-            "availability": "in_stock",
-            "source_hash": "a1b2c3d4e5f60005",
-            "captured_at": datetime(2026, 9, 18, 10, 20, 0, tzinfo=timezone.utc),
         },
         {
             "product_slug": "asus-rog-strix-b650-a-gaming-wifi",
@@ -556,15 +496,6 @@ def seed_demo_observations(
             "captured_at": datetime(2026, 9, 18, 10, 25, 0, tzinfo=timezone.utc),
         },
         {
-            "product_slug": "msi-mag-b760-tomahawk-wifi",
-            "store_domain": "memorykings.com.pe",
-            "price": Decimal("890.00"),
-            "currency": "PEN",
-            "availability": "in_stock",
-            "source_hash": "a1b2c3d4e5f60007",
-            "captured_at": datetime(2026, 9, 18, 10, 30, 0, tzinfo=timezone.utc),
-        },
-        {
             "product_slug": "corsair-rm850e-850w-80-plus-gold",
             "store_domain": "impacto.com.pe",
             "price": Decimal("560.00"),
@@ -572,15 +503,6 @@ def seed_demo_observations(
             "availability": "in_stock",
             "source_hash": "a1b2c3d4e5f60008",
             "captured_at": datetime(2026, 9, 18, 10, 35, 0, tzinfo=timezone.utc),
-        },
-        {
-            "product_slug": "nzxt-kraken-240-rgb-refrigeracion-liquida",
-            "store_domain": "memorykings.com.pe",
-            "price": Decimal("620.00"),
-            "currency": "PEN",
-            "availability": "in_stock",
-            "source_hash": "a1b2c3d4e5f60009",
-            "captured_at": datetime(2026, 9, 18, 10, 40, 0, tzinfo=timezone.utc),
         },
         {
             "product_slug": "deepcool-ak620-refrigeracion-por-aire",
