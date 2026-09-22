@@ -73,19 +73,36 @@ def test_cyc_product_out_of_stock_without_price():
 
 
 def test_cyc_product_consult_availability_unknown():
-    """Verify 'consultar disponibilidad' results in availability='unknown'."""
+    """Verify 'consultar disponibilidad' results in availability='unknown' and price=None."""
     html = read_fixture("product_consult_availability.html")
     adapter = CycComputerAdapter()
     url = "https://cyccomputer.pe/producto/memorias-usb/26549-kingston-exodia.html"
 
     result = adapter.parse_html(html, url)
 
-    # Template price S/ 1,031.55 preserved for audit
-    assert result.price == Decimal("1031.55")
-    assert result.currency == "PEN"
+    # PrestaShop template price S/ 1,031.55 must be rejected (price=None)
+    assert result.price is None
+    assert result.currency is None
     assert result.availability == "unknown"
     assert result.raw_mpn == "DTXM/64GB"
     assert result.comparison_mpn_key == "DTXM64GB"
+
+
+def test_cyc_consult_availability_rejects_template_price_regression():
+    """Regression test: ensure PrestaShop template price (S/ 1,031.55) is rejected.
+
+    When status is 'Consultar disponibilidad', price must be None.
+    """
+    html = read_fixture("product_consult_availability.html")
+    adapter = CycComputerAdapter()
+    url = "https://cyccomputer.pe/producto/memorias-usb/26549-kingston-exodia.html"
+
+    result = adapter.parse_html(html, url)
+
+    assert result.price is None
+    assert result.currency is None
+    assert result.price != Decimal("1031.55")
+
 
 
 def test_cyc_product_comma_thousands():

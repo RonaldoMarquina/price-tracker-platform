@@ -283,6 +283,48 @@ def test_seed_idempotency():
 
         # Verify tables actually have records
         cat_count = db.execute(text("SELECT count(*) FROM categories")).scalar()
-        assert cat_count >= 3
+        assert cat_count >= 8
+    finally:
+        db.close()
+
+
+def test_seed_default_creates_zero_fake_observations():
+    """Verify that default seed inserts canonical catalog with zero fake price observations."""
+    db: Session = SessionLocal()
+    try:
+        # Clean price observations if any
+        db.execute(text("TRUNCATE TABLE price_observations CASCADE"))
+        db.commit()
+
+        counts = seed_dev_data(db)
+        assert counts["price_observations"] == 0
+
+        # Verify database has exactly 0 price observations
+        obs_count = db.execute(text("SELECT count(*) FROM price_observations")).scalar()
+        assert obs_count == 0
+    finally:
+        db.close()
+
+
+def test_seed_with_demo_observations_flag_opt_in():
+    """Verify that explicit opt-in (include_demo_observations=True) inserts demo observations."""
+    db: Session = SessionLocal()
+    try:
+        db.execute(text("TRUNCATE TABLE price_observations CASCADE"))
+        db.commit()
+
+        counts = seed_dev_data(db, include_demo_observations=True)
+        assert counts["price_observations"] > 0
+
+        obs_count = db.execute(text("SELECT count(*) FROM price_observations")).scalar()
+        assert obs_count == counts["price_observations"]
+
+        # Calling again with include_demo_observations=True should be idempotent (0 new)
+        second_counts = seed_dev_data(db, include_demo_observations=True)
+        assert second_counts["price_observations"] == 0
+
+        # Clean up demo observations afterwards so test db stays clean
+        db.execute(text("TRUNCATE TABLE price_observations CASCADE"))
+        db.commit()
     finally:
         db.close()

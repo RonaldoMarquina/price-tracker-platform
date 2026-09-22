@@ -1,6 +1,7 @@
 """Idempotent seed data for development and testing environments."""
 
 import logging
+import os
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -13,8 +14,10 @@ from app.db.session import SessionLocal
 logger = logging.getLogger(__name__)
 
 
-def seed_dev_data(db: Session) -> dict[str, int]:
-    """Insert initial hardware components data idempotently."""
+def seed_canonical_catalog(
+    db: Session,
+) -> tuple[dict[str, int], dict[tuple[str, str], StoreProduct]]:
+    """Insert initial canonical hardware catalog idempotently without fake observations."""
     counts = {
         "categories": 0,
         "stores": 0,
@@ -22,6 +25,7 @@ def seed_dev_data(db: Session) -> dict[str, int]:
         "store_products": 0,
         "price_observations": 0,
     }
+
 
     # 1. Categories - Core PC hardware categories
     categories_data = [
@@ -457,7 +461,18 @@ def seed_dev_data(db: Session) -> dict[str, int]:
         else:
             store_products_map[(sp_data["product_slug"], sp_data["store_domain"])] = existing
 
-    # 5. Price Observations
+    return counts, store_products_map
+
+
+def seed_demo_observations(
+    db: Session, store_products_map: dict[tuple[str, str], StoreProduct]
+) -> int:
+    """Insert demonstrative price observations for local visual testing only.
+
+    Must ONLY be executed when SEED_DEMO_OBSERVATIONS=true is explicitly set.
+    """
+    demo_count = 0
+    # 5. Demonstrative Price Observations (Visual fixtures only)
     price_observations_data = [
         {
             "product_slug": "amd-ryzen-7-5800x",
@@ -711,18 +726,6 @@ def seed_dev_data(db: Session) -> dict[str, int]:
             "source_hash": "cyc-obs-h610m-01",
             "captured_at": datetime(2026, 9, 20, 1, 5, 0, tzinfo=timezone.utc),
         },
-        # Nota: Dato no confiable / provisional publicado por PrestaShop ($ 299.00 / S/ 1,031.55)
-        # bajo 'Consultar disponibilidad'. Se preserva el valor PEN para auditoría;
-        # queda estrictamente excluido del cálculo de mejor precio/oferta.
-        {
-            "product_slug": "kingston-datatraveler-exodia-m-64gb",
-            "store_domain": "cyccomputer.pe",
-            "price": Decimal("1031.55"),
-            "currency": "PEN",
-            "availability": "unknown",
-            "source_hash": "cyc-obs-exodia-m64-01",
-            "captured_at": datetime(2026, 9, 20, 1, 10, 0, tzinfo=timezone.utc),
-        },
     ]
     for po_data in price_observations_data:
         sp = store_products_map[(po_data["product_slug"], po_data["store_domain"])]
@@ -749,16 +752,46 @@ def seed_dev_data(db: Session) -> dict[str, int]:
                 captured_at=po_data["captured_at"],
             )
             db.add(po)
-            counts["price_observations"] += 1
+            demo_count += 1
         else:
             existing.price = po_data["price"]
             existing.currency = po_data["currency"]
             existing.availability = po_data["availability"]
             existing.price_condition = condition
 
+    return demo_count
+
+
+def seed_dev_data(
+    db: Session, include_demo_observations: bool | None = None
+) -> dict[str, int]:
+    """Seed database idempotently.
+
+    By default (SEED_DEMO_OBSERVATIONS=false or unset):
+    - Seeds the canonical catalog (categories, stores, products, store_products).
+    - Seeds ZERO mock price observations.
+
+    When include_demo_observations=True (or env SEED_DEMO_OBSERVATIONS=true):
+    - Additionally inserts demonstrative visual observations.
+    """
+    if include_demo_observations is None:
+        include_demo_observations = (
+            os.getenv("SEED_DEMO_OBSERVATIONS", "false").strip().lower() in ("true", "1", "yes")
+        )
+
+    counts, store_products_map = seed_canonical_catalog(db)
+
+    if include_demo_observations:
+        logger.info("SEED_DEMO_OBSERVATIONS=true: inserting demonstrative observations.")
+        demo_count = seed_demo_observations(db, store_products_map)
+        counts["price_observations"] = demo_count
+    else:
+        logger.info("Default seed mode: inserting canonical catalog only (zero fake observations).")
+
     db.commit()
     logger.info("Seed completed. Created: %s", counts)
     return counts
+
 
 
 def main() -> None:

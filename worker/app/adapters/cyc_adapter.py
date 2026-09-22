@@ -51,15 +51,6 @@ class CycComputerAdapter(BaseStoreAdapter):
         # 5. Price in PEN (base_price: cash_or_bank_transfer)
         price, currency = self._extract_price(soup, availability)
 
-        if availability == "unknown" and price is not None:
-            logger.warning(
-                "Product %s has 'unknown' availability with price %s %s. "
-                "Preserving value for audit, excluded from lowest price / offers.",
-                source_url,
-                price,
-                currency,
-            )
-
         # 6. Image URL (URL string only, no CDN downloading)
         image_url = self._extract_image_url(soup)
 
@@ -175,6 +166,12 @@ class CycComputerAdapter(BaseStoreAdapter):
         pago en Efectivo o Transferencia) and a credit card price with 5% surcharge.
         Only base_price is tracked; card surcharge is ignored and never stored as a 2nd observation.
         """
+        # If availability is unknown (e.g. 'Consultar disponibilidad'), CyC PrestaShop displays
+        # unconfigured template placeholder prices (e.g. $ 299,00 / S/ 1.031,55).
+        # These are not valid commercial offers and must not be recorded.
+        if availability == "unknown":
+            return None, None
+
         # 1. Look for .current-price elements that do not represent card surcharge
         candidates = soup.find_all(class_=re.compile(r"\bcurrent-price\b", re.I))
         price_el = None

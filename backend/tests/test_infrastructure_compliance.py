@@ -408,3 +408,152 @@ def test_backend_and_worker_produce_equivalent_database_connections():
         rendered = url.render_as_string(hide_password=True)
         assert special_pwd not in rendered
         assert "***" in rendered
+
+
+def test_database_url_explicit_priority_over_postgres_env():
+    """Requirement: Explicit DATABASE_URL must not be overwritten by POSTGRES_* or DB_* vars."""
+    import importlib.util
+    import os
+    from unittest.mock import patch
+
+    from app.core.config import Settings
+
+    worker_config_path = REPO_ROOT / "worker" / "app" / "core" / "config.py"
+    spec = importlib.util.spec_from_file_location("worker_config_mod_prio", str(worker_config_path))
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    docker_env = {
+        "DATABASE_URL": "postgresql://postgres:postgres@postgres:5432/price_tracker",
+        "POSTGRES_HOST": "postgres",
+        "POSTGRES_PORT": "5432",
+        "POSTGRES_DB": "price_tracker",
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "postgres",
+    }
+
+    with patch.dict(os.environ, docker_env, clear=False):
+        # Remove any DB_* variables to simulate exact Docker Compose environment
+        for k in ["DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"]:
+            os.environ.pop(k, None)
+
+        backend_settings = Settings()
+        worker_settings = mod.WorkerSettings()
+
+        # Both must preserve the exact DATABASE_URL with password intact
+        assert (
+            backend_settings.DATABASE_URL
+            == "postgresql://postgres:postgres@postgres:5432/price_tracker"
+        )
+        assert (
+            worker_settings.DATABASE_URL
+            == "postgresql://postgres:postgres@postgres:5432/price_tracker"
+        )
+
+        # Direct kwargs instantiation with DATABASE_URL also takes absolute priority
+        custom_url = "postgresql://custom_user:custom_pass@custom_host:5432/custom_db"
+        b_custom = Settings(DATABASE_URL=custom_url, DB_HOST="extra_host")
+        w_custom = mod.WorkerSettings(DATABASE_URL=custom_url, DB_HOST="extra_host")
+        assert b_custom.DATABASE_URL == custom_url
+        assert w_custom.DATABASE_URL == custom_url
+
+
+def test_database_discrete_incomplete_raises_safe_error():
+    """Requirement: Incomplete DB_* parameters must raise ValueError without leaking secrets."""
+    import importlib.util
+
+    from app.core.config import Settings
+
+    worker_config_path = REPO_ROOT / "worker" / "app" / "core" / "config.py"
+    spec = importlib.util.spec_from_file_location("worker_config_mod_err", str(worker_config_path))
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    secret_val = "super_sensitive_plain_secret_pwd_987"
+
+    # Missing password
+    for cls in [Settings, mod.WorkerSettings]:
+        try:
+            cls(DB_HOST="rds.internal", DB_NAME="tracker_db", DB_USER="user")
+            assert False, f"{cls} should have failed when DB_PASSWORD is missing"
+        except ValueError as exc:
+            assert "Incomplete database configuration" in str(exc)
+            assert "DB_PASSWORD" in str(exc)
+
+    # Missing user with secret password provided: verify secret is NOT leaked in error
+    for cls in [Settings, mod.WorkerSettings]:
+        try:
+            cls(DB_HOST="rds.internal", DB_NAME="tracker_db", DB_PASSWORD=secret_val)
+            assert False, f"{cls} should have failed when DB_USER is missing"
+        except ValueError as exc:
+            assert "Incomplete database configuration" in str(exc)
+            assert secret_val not in str(exc), "LEAKED SECRET IN ERROR MESSAGE!"
+            assert "DB_USER" in str(exc)
+
+
+def test_database_discrete_aws_mode_from_environment():
+    """Requirement: AWS environment with DB_* and without DATABASE_URL builds correctly."""
+    import importlib.util
+    import os
+    from unittest.mock import patch
+
+    from app.core.config import Settings
+
+    worker_config_path = REPO_ROOT / "worker" / "app" / "core" / "config.py"
+    spec = importlib.util.spec_from_file_location("worker_config_mod_aws", str(worker_config_path))
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    aws_env = {
+        "DB_HOST": "price-tracker-rds.c7x8.us-east-1.rds.amazonaws.com",
+        "DB_PORT": "5432",
+        "DB_NAME": "price_tracker_prod",
+        "DB_USER": "master_app_user",
+        "DB_PASSWORD": "aws_pass@with space:and/symbols#",
+    }
+
+    with patch.dict(os.environ, aws_env, clear=False):
+        os.environ.pop("DATABASE_URL", None)
+
+        backend_settings = Settings()
+        worker_settings = mod.WorkerSettings()
+
+        expected_url = (
+            "postgresql://master_app_user:aws_pass%40with%20space%3Aand%2Fsymbols%23"
+            "@price-tracker-rds.c7x8.us-east-1.rds.amazonaws.com:5432/price_tracker_prod"
+        )
+        assert backend_settings.DATABASE_URL == expected_url
+        assert worker_settings.DATABASE_URL == expected_url
+
+
+def test_suite_aborts_if_database_url_points_to_development():
+    """Requirement: Test suite must fail immediately if DATABASE_URL points to dev/prod."""
+    import os
+    import subprocess
+    import sys
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "--collect-only",
+        "tests/test_models.py",
+    ]
+    env = {
+        **os.environ,
+        "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/price_tracker",
+    }
+    result = subprocess.run(
+        cmd,
+        cwd=str(REPO_ROOT / "backend"),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    output = result.stderr + result.stdout
+    assert "ABORTING TEST EXECUTION" in output
+    assert "price_tracker" in output
