@@ -197,12 +197,13 @@ resource "aws_iam_role_policy" "worker_sqs" {
         Sid    = "WorkerPrimaryQueueAccess"
         Effect = "Allow"
         Action = [
+          "sqs:GetQueueUrl",
           "sqs:ReceiveMessage",
           "sqs:DeleteMessage",
           "sqs:ChangeMessageVisibility",
           "sqs:GetQueueAttributes"
         ]
-        Resource = [var.sqs_queue_arn]
+        Resource = [var.sqs_queue_arn, var.sqs_dlq_arn]
       }
     ]
   })
@@ -231,7 +232,7 @@ resource "aws_iam_role_policy" "outbox_publisher_sqs" {
         Sid    = "OutboxPublishPrimaryQueue"
         Effect = "Allow"
         # Note: sqs:SendMessage authorizes both single and SendMessageBatch operations
-        Action   = ["sqs:SendMessage"]
+        Action   = ["sqs:GetQueueUrl", "sqs:SendMessage"]
         Resource = [var.sqs_queue_arn]
       }
     ]
@@ -373,6 +374,7 @@ resource "aws_ecs_task_definition" "backend_api" {
         { name = "DB_PORT", value = tostring(var.db_port) },
         { name = "DB_NAME", value = var.db_name },
         { name = "DB_USER", value = var.db_username },
+        { name = "QUEUE_BACKEND", value = "sqs" },
         { name = "ENVIRONMENT", value = "production" },
         { name = "DOCS_ENABLED", value = "false" }
       ]
@@ -474,6 +476,10 @@ resource "aws_ecs_task_definition" "outbox_publisher" {
         {
           name      = "DB_PASSWORD"
           valueFrom = "${var.master_user_secret_arn}:password::"
+        },
+        {
+          name      = "INTERNAL_API_KEY"
+          valueFrom = var.internal_api_key_secret_arn
         }
       ]
       logConfiguration = {

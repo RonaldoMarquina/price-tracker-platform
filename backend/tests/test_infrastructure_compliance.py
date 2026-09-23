@@ -154,12 +154,12 @@ def test_cloudfront_api_behavior_no_caching_and_header_forwarding():
 
 
 def test_cloudfront_spa_routing_fallbacks():
-    """Requirement: CloudFront must route 403 and 404 to /index.html with status 200 for SPA."""
+    """Requirement: CloudFront uses CloudFront Function for SPA routing without custom_error_response."""
     storage_tf = (TF_DIR / "modules" / "storage" / "main.tf").read_text(encoding="utf-8")
-    assert "error_code            = 403" in storage_tf
-    assert "error_code            = 404" in storage_tf
-    assert "response_code         = 200" in storage_tf
-    assert 'response_page_path    = "/index.html"' in storage_tf
+    assert 'resource "aws_cloudfront_function" "spa_router"' in storage_tf
+    assert "uri.startsWith('/api/')" in storage_tf
+    assert "request.uri = '/index.html'" in storage_tf
+    assert "custom_error_response" not in storage_tf
 
 
 def test_sqs_redrive_policy_max_receive_count():
@@ -732,3 +732,58 @@ def test_tests_configure_isolated_key_before_app_import():
     assert "INTERNAL_API_KEY" in worker_conftest
     assert "dev-internal-secret-token" not in backend_conftest
     assert "dev-internal-secret-token" not in worker_conftest
+
+
+def test_backend_api_task_definition_has_queue_backend_sqs():
+    """Requirement: backend_api task definition must configure QUEUE_BACKEND=sqs."""
+    compute_tf = (TF_DIR / "modules" / "compute" / "main.tf").read_text(encoding="utf-8")
+    pattern = (
+        r'resource "aws_ecs_task_definition" "backend_api"'
+        r".*?container_definitions\s*=\s*jsonencode\(\[(.*?)\]\)"
+    )
+    match = re.search(pattern, compute_tf, re.DOTALL)
+    assert match is not None, "backend_api task definition not found"
+    container_def = match.group(1)
+    assert '"QUEUE_BACKEND"' in container_def
+    assert '"sqs"' in container_def
+
+
+def test_outbox_publisher_task_definition_injects_internal_api_key():
+    """Requirement: outbox_publisher must inject INTERNAL_API_KEY from Secrets Manager."""
+    compute_tf = (TF_DIR / "modules" / "compute" / "main.tf").read_text(encoding="utf-8")
+    pattern = (
+        r'resource "aws_ecs_task_definition" "outbox_publisher"'
+        r".*?container_definitions\s*=\s*jsonencode\(\[(.*?)\]\)"
+    )
+    match = re.search(pattern, compute_tf, re.DOTALL)
+    assert match is not None, "outbox_publisher task definition not found"
+    container_def = match.group(1)
+    assert '"INTERNAL_API_KEY"' in container_def
+    assert "var.internal_api_key_secret_arn" in container_def
+
+
+def test_worker_and_outbox_iam_policies_include_sqs_get_queue_url():
+    """Requirement: worker_sqs and outbox_sqs policies must include sqs:GetQueueUrl."""
+    compute_tf = (TF_DIR / "modules" / "compute" / "main.tf").read_text(encoding="utf-8")
+
+    # Worker SQS policy
+    worker_pattern = (
+        r'resource "aws_iam_role_policy" "worker_sqs"'
+        r".*?policy\s*=\s*jsonencode\(\{(.*?)\}\)"
+    )
+    worker_match = re.search(worker_pattern, compute_tf, re.DOTALL)
+    assert worker_match is not None, "worker_sqs IAM policy not found"
+    worker_policy = worker_match.group(1)
+    assert "sqs:GetQueueUrl" in worker_policy
+    assert "var.sqs_queue_arn" in worker_policy
+
+    # Outbox publisher SQS policy
+    outbox_pattern = (
+        r'resource "aws_iam_role_policy" "outbox_publisher_sqs"'
+        r".*?policy\s*=\s*jsonencode\(\{(.*?)\}\)"
+    )
+    outbox_match = re.search(outbox_pattern, compute_tf, re.DOTALL)
+    assert outbox_match is not None, "outbox_publisher_sqs IAM policy not found"
+    outbox_policy = outbox_match.group(1)
+    assert "sqs:GetQueueUrl" in outbox_policy
+    assert "var.sqs_queue_arn" in outbox_policy
