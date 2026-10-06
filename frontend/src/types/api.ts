@@ -112,6 +112,7 @@ export interface ProductFilterParams {
   category?: string;
   page?: number;
   page_size?: number;
+  with_offers_only?: boolean;
 }
 
 export interface PriceHistoryParams {

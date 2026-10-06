@@ -63,6 +63,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         category: category || undefined,
         page,
         page_size: pageSize,
+        with_offers_only: false,
       });
       setProducts(response.items);
       setTotal(response.total);

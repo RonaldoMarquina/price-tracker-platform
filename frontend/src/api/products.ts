@@ -22,6 +22,9 @@ export async function getProducts(params: ProductFilterParams = {}): Promise<Pro
   if (params.page_size && params.page_size > 0) {
     query.set("page_size", params.page_size.toString());
   }
+  if (params.with_offers_only !== undefined) {
+    query.set("with_offers_only", params.with_offers_only.toString());
+  }
 
   const queryString = query.toString();
   const endpoint = `/products${queryString ? `?${queryString}` : ""}`;
