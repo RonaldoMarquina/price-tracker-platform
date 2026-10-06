@@ -154,7 +154,9 @@ def test_cloudfront_api_behavior_no_caching_and_header_forwarding():
 
 
 def test_cloudfront_spa_routing_fallbacks():
-    """Requirement: CloudFront uses CloudFront Function for SPA routing without custom_error_response."""
+    """Requirement: CloudFront uses CloudFront Function for SPA routing
+    without custom_error_response.
+    """
     storage_tf = (TF_DIR / "modules" / "storage" / "main.tf").read_text(encoding="utf-8")
     assert 'resource "aws_cloudfront_function" "spa_router"' in storage_tf
     assert "uri.startsWith('/api/')" in storage_tf
@@ -581,7 +583,7 @@ def test_backend_settings_fails_when_internal_api_key_missing():
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("INTERNAL_API_KEY", None)
         try:
-            Settings()
+            Settings(_env_file=None)
             assert False, "Settings must fail initialization when INTERNAL_API_KEY is missing"
         except (ValidationError, ValueError) as exc:
             assert "INTERNAL_API_KEY" in str(exc) or "Field required" in str(exc)

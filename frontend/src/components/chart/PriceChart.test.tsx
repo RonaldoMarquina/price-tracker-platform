@@ -95,4 +95,42 @@ describe("PriceChart component", () => {
       screen.queryByText("No hay observaciones de precios registradas en el período seleccionado.")
     ).not.toBeInTheDocument();
   });
+
+  it("aligns multi-store observations captured at different minutes on the same calendar day", () => {
+    const multiStoreHistory: ProductPriceHistoryResponse = {
+      product_id: "prod-test-multi",
+      series: [
+        {
+          store_id: "store-1",
+          store_name: "NECS Ayacucho",
+          currency: "PEN",
+          points: [
+            { captured_at: "2026-09-22T04:30:00Z", price: "430.00" },
+            { captured_at: "2026-09-28T23:59:00Z", price: "430.00" },
+          ],
+        },
+        {
+          store_id: "store-2",
+          store_name: "Memory Kings",
+          currency: "PEN",
+          points: [
+            { captured_at: "2026-09-22T04:35:00Z", price: "392.00" },
+            { captured_at: "2026-09-29T00:30:00Z", price: "400.00" },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(
+      <PriceChart
+        history={multiStoreHistory}
+        selectedRange="ALL"
+        onRangeChange={vi.fn()}
+        onStoreChange={vi.fn()}
+      />
+    );
+
+    expect(container.querySelector(".recharts-responsive-container")).toBeInTheDocument();
+    expect(screen.getByText("Historial de Precios")).toBeInTheDocument();
+  });
 });

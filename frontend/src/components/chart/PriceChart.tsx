@@ -45,20 +45,30 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     const names: string[] = [];
     let detectedCurrency = "PEN";
 
-    // Map timestamp -> { timestamp, date, [storeName]: price }
+    // Map dateKey (YYYY-MM-DD in local time) -> { timestamp, dateStr, [storeName]: price }
     const timeMap = new Map<string, { timestamp: number; dateStr: string; [key: string]: unknown }>();
+    const storeLatestTimestampMap = new Map<string, number>();
 
     seriesList.forEach((s) => {
-      names.push(s.store_name);
+      if (!names.includes(s.store_name)) {
+        names.push(s.store_name);
+      }
       if (s.currency) detectedCurrency = s.currency;
 
       s.points.forEach((pt) => {
         const d = new Date(pt.captured_at);
-        const timeKey = pt.captured_at; // use exact timestamp as key
+        if (isNaN(d.getTime())) return;
 
-        if (!timeMap.has(timeKey)) {
-          timeMap.set(timeKey, {
-            timestamp: d.getTime(),
+        // Group by local calendar day so simultaneous scrapings align on the same date point
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const dateKey = `${year}-${month}-${day}`;
+
+        if (!timeMap.has(dateKey)) {
+          const dayStart = new Date(year, d.getMonth(), d.getDate()).getTime();
+          timeMap.set(dateKey, {
+            timestamp: dayStart,
             dateStr: new Intl.DateTimeFormat("es-PE", {
               month: "short",
               day: "numeric",
@@ -67,8 +77,16 @@ export const PriceChart: React.FC<PriceChartProps> = ({
           });
         }
 
-        const entry = timeMap.get(timeKey)!;
-        entry[s.store_name] = parseFloat(pt.price);
+        const entry = timeMap.get(dateKey)!;
+        const ptTimestamp = d.getTime();
+        const storeKey = `${dateKey}_${s.store_name}`;
+        const previousLatest = storeLatestTimestampMap.get(storeKey) ?? -1;
+
+        // In case multiple observations exist on the same day for a store, keep the latest observation
+        if (ptTimestamp >= previousLatest) {
+          storeLatestTimestampMap.set(storeKey, ptTimestamp);
+          entry[s.store_name] = parseFloat(pt.price);
+        }
       });
     });
 
@@ -213,10 +231,17 @@ export const PriceChart: React.FC<PriceChartProps> = ({
                   borderRadius: "8px",
                   boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
                   fontSize: "13px",
+                  padding: "0.5rem 0.75rem",
                 }}
-                formatter={(value: unknown) => {
+                labelStyle={{
+                  fontWeight: 600,
+                  color: "#1e293b",
+                  marginBottom: "0.25rem",
+                }}
+                formatter={(value: unknown, name: unknown) => {
                   const num = typeof value === "number" ? value : Number(value);
-                  return !isNaN(num) ? `${currency} ${num.toFixed(2)}` : String(value ?? "");
+                  const formattedVal = !isNaN(num) ? `${currency} ${num.toFixed(2)}` : String(value ?? "");
+                  return [formattedVal, String(name)];
                 }}
               />
               <Legend wrapperStyle={{ paddingTop: "12px", fontSize: "13px" }} />
@@ -229,7 +254,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
                   stroke={STORE_COLORS[index % STORE_COLORS.length]}
                   strokeWidth={2.5}
                   dot={{ r: 4, strokeWidth: 2 }}
-                  activeDot={{ r: 6 }}
+                  activeDot={{ r: 6, stroke: "#ffffff", strokeWidth: 2 }}
                   connectNulls
                 />
               ))}

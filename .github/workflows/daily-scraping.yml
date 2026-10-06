@@ -1,0 +1,81 @@
+name: Daily Scraping Dispatch
+
+on:
+  schedule:
+    # Runs daily at 11:00 UTC (6:00 AM PET / Peru local time)
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force execution even if outside normal schedule'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  dispatch-scraping:
+    name: Trigger Daily Price Scraping
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Validate Secrets
+        run: |
+          if [ -z "${{ secrets.API_BASE_URL }}" ]; then
+            echo "::error::Secret API_BASE_URL is not configured."
+            exit 1
+          fi
+          if [ -z "${{ secrets.INTERNAL_API_KEY }}" ]; then
+            echo "::error::Secret INTERNAL_API_KEY is not configured."
+            exit 1
+          fi
+          echo "All required secrets are present."
+
+      - name: Pre-warm API (Handle Cold Starts)
+        run: |
+          API_URL="${{ secrets.API_BASE_URL }}"
+          # Strip trailing slash if present
+          API_URL="${API_URL%/}"
+          
+          echo "Pre-warming API at ${API_URL}/health..."
+          for i in {1..6}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "${API_URL}/health" || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "API is awake and healthy (HTTP 200)."
+              exit 0
+            fi
+            echo "Attempt $i: Received HTTP $HTTP_CODE. Waiting 10s before retry..."
+            sleep 10
+          done
+          echo "::warning::API health check did not return 200 within timeout. Proceeding with dispatch attempt."
+
+      - name: Trigger Scraping Dispatch
+        run: |
+          API_URL="${{ secrets.API_BASE_URL }}"
+          API_URL="${API_URL%/}"
+          DISPATCH_ENDPOINT="${API_URL}/api/v1/scraping/dispatch"
+          
+          echo "Dispatching daily scraping cycle to: ${DISPATCH_ENDPOINT}"
+          
+          RESPONSE_FILE=$(mktemp)
+          HTTP_STATUS=$(curl -s -w "%{http_code}" -o "$RESPONSE_FILE" \
+            -X POST "$DISPATCH_ENDPOINT" \
+            -H "Authorization: Bearer ${{ secrets.INTERNAL_API_KEY }}" \
+            -H "X-Internal-API-Key: ${{ secrets.INTERNAL_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            --max-time 60)
+
+          RESPONSE_BODY=$(cat "$RESPONSE_FILE")
+          rm -f "$RESPONSE_FILE"
+
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response Body: $RESPONSE_BODY"
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Daily scraping jobs successfully dispatched!"
+          elif [ "$HTTP_STATUS" = "409" ]; then
+            echo "::notice::Dispatch was skipped: another instance currently holds the lock or slot is occupied."
+          else
+            echo "::error::Failed to dispatch scraping. HTTP status: $HTTP_STATUS"
+            exit 1
+          fi

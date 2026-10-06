@@ -102,3 +102,10 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+
+# ==========================================
+# Agentes y Scratch
+# ==========================================
+.agents/
+.continue/
+scratch/

@@ -35,7 +35,9 @@ def get_seeded_product() -> tuple[Product, Store, StoreProduct, PriceObservation
 
         store = db.scalars(select(Store).where(Store.is_active.is_(True))).first()
         if not store:
-            store = Store(name="Test Store", domain=f"test-{uuid.uuid4().hex[:6]}.com", is_active=True)
+            store = Store(
+                name="Test Store", domain=f"test-{uuid.uuid4().hex[:6]}.com", is_active=True
+            )
             db.add(store)
             db.flush()
 

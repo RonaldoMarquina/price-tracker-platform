@@ -26,7 +26,6 @@ def seed_canonical_catalog(
         "price_observations": 0,
     }
 
-
     # 1. Categories - Core PC hardware categories
     categories_data = [
         {"name": "Procesadores", "slug": "procesadores"},
@@ -185,7 +184,7 @@ def seed_canonical_catalog(
             "brand": "Kingston",
             "model": "DataTraveler Exodia S",
             "mpn": "DTXS/128GB",
-            "image_url": "https://cdn.memorykings.pe/files/2025/03/28/353418-MK039010.jpg",
+            "image_url": "https://cdn.memorykings.pe/files/2025/06/21/353418-MK039808-A.jpg",
         },
         {
             "name": "Multigrabador Externo DVD LG GP65NB60 Slim",
@@ -194,7 +193,7 @@ def seed_canonical_catalog(
             "brand": "LG",
             "model": "GP65NB60",
             "mpn": "GP65NB60",
-            "image_url": "https://cdn.memorykings.pe/files/2024/09/20/093353-A.jpg",
+            "image_url": "https://cdn.memorykings.pe/files/2016/12/31/93353-mk016854a.jpg",
         },
         {
             "name": "Mainboard MSI PRO H610M-A DDR4",
@@ -203,7 +202,7 @@ def seed_canonical_catalog(
             "brand": "MSI",
             "model": "PRO H610M-A DDR4",
             "mpn": "PRO H610M-A DDR4",
-            "image_url": "https://necs.pe/15305-large_default/mainboard-msi-pro-h610m-a-ddr4-lga-1700.jpg",
+            "image_url": "https://necs.pe/uploads/img/1783989873_PLACA_MSI_f6c80d.webp",
         },
         {
             "name": "DeepCool AK620 Digital SE ARGB Black",
@@ -212,7 +211,7 @@ def seed_canonical_catalog(
             "brand": "DeepCool",
             "model": "AK620 Digital SE",
             "mpn": "R-AK620-BKADMN-GJD",
-            "image_url": "https://computershopperu.com/152912-thickbox_default/deepcool-ak620-digital-se-black-argb-cooler-cpu-refrigeracion-aire-compatible-amdintel-pnr-ak620-bkadmn-gjd.jpg",
+            "image_url": "https://computershopperu.com/11065-large_default/deepcool-ak620-digital-se-black-argb-cooler-cpu-refrigeracion-aire-compatible-amdintel-pnr-ak620-bkadmn-gjd.jpg",
         },
         {
             "name": "Memoria USB Kingston DataTraveler Exodia M 64GB",
@@ -221,7 +220,7 @@ def seed_canonical_catalog(
             "brand": "Kingston",
             "model": "DataTraveler Exodia M",
             "mpn": "DTXM/64GB",
-            "image_url": "https://necs.pe/7901-large_default/memoria-usb-kingston-64gb-datatraveler-exodia-m-usb-32-azul-negro.jpg",
+            "image_url": "https://necs.pe/uploads/img/1736353008_memoria%20usb%2064gb%20exodia-m.webp",
         },
         {
             "name": "Memoria RAM Kingston Fury Beast RGB DDR5 32GB 5200MHz",
@@ -277,6 +276,97 @@ def seed_canonical_catalog(
             "mpn": "HSC416U32Z2",
             "image_url": "https://necs.pe/uploads/img/1783017080_hiksemi_ddr4_552355.webp",
         },
+        # --- Expanded Catalog Products ---
+        {
+            "name": "AMD Ryzen 5 5500",
+            "slug": "amd-ryzen-5-5500",
+            "category_slug": "procesadores",
+            "brand": "AMD",
+            "model": "Ryzen 5 5500",
+            "mpn": "100-100000457BOX",
+            "image_url": "https://cdn.memorykings.pe/files/2022/06/30/341399-MK032141A.jpg",
+        },
+        {
+            "name": "Zotac Gaming GeForce RTX 5050 8GB Twin",
+            "slug": "zotac-geforce-rtx-5050-8gb-twin",
+            "category_slug": "tarjetas-de-video",
+            "brand": "Zotac",
+            "model": "GeForce RTX 5050 Twin",
+            "mpn": "ZT-B50500E-10M",
+            "image_url": "https://cdn.memorykings.pe/files/2026/01/07/354789-MK041175A.jpg",
+        },
+        {
+            "name": "Disco Sólido Kingston NV3 1TB M.2 PCIe 4.0 NVMe",
+            "slug": "kingston-nv3-1tb-m2-pcie-nvme",
+            "category_slug": "almacenamiento",
+            "brand": "Kingston",
+            "model": "NV3 1TB",
+            "mpn": "SNV3S/1000G",
+            "image_url": "https://cdn.memorykings.pe/files/2024/08/28/350666-MK037513A.jpg",
+        },
+        {
+            "name": 'Disco Duro Externo Toshiba Canvio Basics 1TB USB 3.0 2.5"',
+            "slug": "toshiba-canvio-basics-1tb",
+            "category_slug": "almacenamiento",
+            "brand": "Toshiba",
+            "model": "Canvio Basics 1TB",
+            "mpn": "HDTB510XK3AA",
+            "image_url": "https://cdn.memorykings.pe/files/2023/05/12/346537-MK033910A.jpg",
+        },
+        {
+            "name": 'Disco Duro Externo Toshiba Canvio Basics 2TB USB 3.0 2.5"',
+            "slug": "toshiba-canvio-basics-2tb",
+            "category_slug": "almacenamiento",
+            "brand": "Toshiba",
+            "model": "Canvio Basics 2TB",
+            "mpn": "HDTB520XK3AA",
+            "image_url": "https://cdn.memorykings.pe/files/2026/09/28/346546-MK033919A1.jpg",
+        },
+        {
+            "name": "AMD Ryzen 5 7600X",
+            "slug": "amd-ryzen-5-7600x",
+            "category_slug": "procesadores",
+            "brand": "AMD",
+            "model": "Ryzen 5 7600X",
+            "mpn": "100-100000593WOF",
+            "image_url": "https://cdn.memorykings.pe/files/2022/09/30/345495-MK032868A.jpg",
+        },
+        {
+            "name": "AMD Ryzen 7 5700X",
+            "slug": "amd-ryzen-7-5700x",
+            "category_slug": "procesadores",
+            "brand": "AMD",
+            "model": "Ryzen 7 5700X",
+            "mpn": "100-100000926WOF",
+            "image_url": "https://cdn.memorykings.pe/files/2022/06/09/337672-MK031913A.jpg",
+        },
+        {
+            "name": "Tarjeta de Video XFX Radeon RX 9060 8GB Swift OC Gaming",
+            "slug": "xfx-radeon-rx-9060-8gb-swift-oc",
+            "category_slug": "tarjetas-de-video",
+            "brand": "XFX",
+            "model": "Radeon RX 9060 Swift OC",
+            "mpn": "RX-96TS8DFD",
+            "image_url": "https://cdn.memorykings.pe/files/2026/07/08/356033-MK042413-A-3.jpg",
+        },
+        {
+            "name": "Memoria RAM Kingston Fury Beast DDR4 16GB 3200MHz",
+            "slug": "kingston-fury-beast-ddr4-16gb-3200mhz",
+            "category_slug": "memorias-ram",
+            "brand": "Kingston",
+            "model": "Fury Beast DDR4 16GB",
+            "mpn": "KF432C16BB/16",
+            "image_url": "https://cdn.memorykings.pe/files/2021/09/27/329869-MK030196A.jpg",
+        },
+        {
+            "name": "Mainboard Gigabyte H610M K D4",
+            "slug": "gigabyte-h610m-k-d4",
+            "category_slug": "placas-madre",
+            "brand": "Gigabyte",
+            "model": "H610M K D4",
+            "mpn": "H610M K D4",
+            "image_url": "https://cdn.memorykings.pe/files/2026/08/11/349048-mk035894a1p.jpg",
+        },
     ]
     products_map: dict[str, Product] = {}
     for prod_data in products_data:
@@ -299,6 +389,8 @@ def seed_canonical_catalog(
         else:
             if not existing.mpn and prod_data.get("mpn"):
                 existing.mpn = prod_data["mpn"]
+            if prod_data.get("image_url") and existing.image_url != prod_data["image_url"]:
+                existing.image_url = prod_data["image_url"]
             products_map[existing.slug] = existing
 
     # 4. Store Products
@@ -350,6 +442,7 @@ def seed_canonical_catalog(
             "store_domain": "necs.pe",
             "product_url": "https://necs.pe/products/15305",
             "external_sku": "1588",
+            "image_url": "https://necs.pe/uploads/img/1783989873_PLACA_MSI_f6c80d.webp",
         },
         {
             "product_slug": "msi-pro-h610m-a-ddr4",
@@ -380,24 +473,28 @@ def seed_canonical_catalog(
             "store_domain": "necs.pe",
             "product_url": "https://necs.pe/products/7351",
             "external_sku": "1191",
+            "image_url": "https://necs.pe/uploads/img/1757008110_exodia%20S.webp",
         },
         {
             "product_slug": "kingston-datatraveler-exodia-s-128gb",
             "store_domain": "memorykings.pe",
             "product_url": "https://www.memorykings.pe/producto/353418/memoria-usb-128gb-kingston-dt-exodia-s",
             "external_sku": "353418",
+            "image_url": "https://cdn.memorykings.pe/files/2025/06/21/353418-MK039808-A.jpg",
         },
         {
             "product_slug": "lg-gp65nb60-slim-dvd",
             "store_domain": "necs.pe",
             "product_url": "https://necs.pe/products/142",
             "external_sku": "0143",
+            "image_url": "https://necs.pe/uploads/img/1725466250_1724541590_1723765973_dvd.webp",
         },
         {
             "product_slug": "lg-gp65nb60-slim-dvd",
             "store_domain": "memorykings.pe",
             "product_url": "https://www.memorykings.pe/producto/93353/grabador-dvd-usb-super-multi-lg-gp65nb60-slim",
             "external_sku": "93353",
+            "image_url": "https://cdn.memorykings.pe/files/2016/12/31/93353-mk016854a.jpg",
         },
         {
             "product_slug": "asus-rog-strix-b650-a-gaming-wifi",
@@ -410,18 +507,21 @@ def seed_canonical_catalog(
             "store_domain": "computershopperu.com",
             "product_url": "https://computershopperu.com/producto/refrigeracion-aire/40069-deepcool-ak620-digital-se-black-argb-cooler-cpu-refrigeracion-aire-compatible-amdintel-pnr-ak620-bkadmn-gjd.html",
             "external_sku": "269645564",
+            "image_url": "https://computershopperu.com/11065-large_default/deepcool-ak620-digital-se-black-argb-cooler-cpu-refrigeracion-aire-compatible-amdintel-pnr-ak620-bkadmn-gjd.jpg",
         },
         {
             "product_slug": "kingston-datatraveler-exodia-m-64gb",
             "store_domain": "necs.pe",
             "product_url": "https://necs.pe/products/3849",
             "external_sku": "0869",
+            "image_url": "https://necs.pe/uploads/img/1736353008_memoria%20usb%2064gb%20exodia-m.webp",
         },
         {
             "product_slug": "kingston-datatraveler-exodia-m-64gb",
             "store_domain": "computershopperu.com",
             "product_url": "https://computershopperu.com/producto/memoria-usb/29942-memoria-usb-64gb-kingston-datatraveler-exodia-m-azul-version-32-pnkc-u2l64-7lb.html",
             "external_sku": "302900002",
+            "image_url": "https://computershopperu.com/4006-large_default/memoria-usb-64gb-kingston-datatraveler-exodia-m-azul-version-32-pnkc-u2l64-7lb.jpg",
         },
         # Disabled due to commercial price anomaly (KF552C40BBA-32 published
         # at $499 USD / S/ 1,711.57) pending verification before activation.
@@ -485,6 +585,122 @@ def seed_canonical_catalog(
             "product_url": "https://necs.pe/products/15170",
             "external_sku": "1573",
             "image_url": "https://necs.pe/uploads/img/1783017080_hiksemi_ddr4_552355.webp",
+        },
+        # --- Expanded Catalog Store Products ---
+        # 1. AMD Ryzen 5 5500 (NECS + Memory Kings)
+        {
+            "product_slug": "amd-ryzen-5-5500",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/7836",
+            "external_sku": "07836",
+            "image_url": "https://necs.pe/uploads/img/1761258838_amd%20ryzen%205%205500.webp",
+        },
+        {
+            "product_slug": "amd-ryzen-5-5500",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/341399/procesador-ryzen-5-5500-3-6-4-2ghz-16mb-am4",
+            "external_sku": "032141",
+            "image_url": "https://cdn.memorykings.pe/files/2022/06/30/341399-MK032141A.jpg",
+        },
+        # 2. Zotac Gaming GeForce RTX 5050 8GB Twin (NECS + Memory Kings)
+        {
+            "product_slug": "zotac-geforce-rtx-5050-8gb-twin",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/18701",
+            "external_sku": "18701",
+            "image_url": "https://necs.pe/uploads/store/logo_1_1769401086.png",
+        },
+        {
+            "product_slug": "zotac-geforce-rtx-5050-8gb-twin",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/354789/geforce-rtx-5050-8gb-128-bits-zotac-gaming-twin",
+            "external_sku": "041175",
+            "image_url": "https://cdn.memorykings.pe/files/2026/01/07/354789-MK041175A.jpg",
+        },
+        # 3. Kingston NV3 1TB (NECS + Memory Kings)
+        {
+            "product_slug": "kingston-nv3-1tb-m2-pcie-nvme",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/3815",
+            "external_sku": "03815",
+            "image_url": "https://necs.pe/uploads/img/1736384000_kingston%20nv3%201tb.webp",
+        },
+        {
+            "product_slug": "kingston-nv3-1tb-m2-pcie-nvme",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/350666/unidad-ssd-m-2-pcie-1tb-kingston-nv3-g4",
+            "external_sku": "037513",
+            "image_url": "https://cdn.memorykings.pe/files/2024/08/28/350666-MK037513A.jpg",
+        },
+        # 4. Toshiba Canvio Basics 1TB (NECS + Memory Kings)
+        {
+            "product_slug": "toshiba-canvio-basics-1tb",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/138",
+            "external_sku": "0138",
+            "image_url": "https://necs.pe/uploads/img/1725922981_disco%20externo%20toshiba%201tb.webp",
+        },
+        {
+            "product_slug": "toshiba-canvio-basics-1tb",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/346537/disco-duro-usb-1tb-toshiba-canvio-basics-black",
+            "external_sku": "033910",
+            "image_url": "https://cdn.memorykings.pe/files/2023/05/12/346537-MK033910A.jpg",
+        },
+        # 5. Toshiba Canvio Basics 2TB (NECS + Memory Kings)
+        {
+            "product_slug": "toshiba-canvio-basics-2tb",
+            "store_domain": "necs.pe",
+            "product_url": "https://necs.pe/products/139",
+            "external_sku": "0139",
+            "image_url": "https://necs.pe/uploads/img/1725923066_disco%20externo%20toshiba%202tb.webp",
+        },
+        {
+            "product_slug": "toshiba-canvio-basics-2tb",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/346546/disco-duro-usb-2tb-toshiba-canvio-basics-black",
+            "external_sku": "033919",
+            "image_url": "https://cdn.memorykings.pe/files/2026/09/28/346546-MK033919A1.jpg",
+        },
+        # 6. AMD Ryzen 5 7600X (Memory Kings)
+        {
+            "product_slug": "amd-ryzen-5-7600x",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/345495/procesador-ryzen-5-7600x-4-7-5-3ghz-32mb-am5",
+            "external_sku": "032868",
+            "image_url": "https://cdn.memorykings.pe/files/2022/09/30/345495-MK032868A.jpg",
+        },
+        # 7. AMD Ryzen 7 5700X (Memory Kings)
+        {
+            "product_slug": "amd-ryzen-7-5700x",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/337672/procesador-ryzen-7-5700x-3-4-4-6ghz-32mb-am4",
+            "external_sku": "031913",
+            "image_url": "https://cdn.memorykings.pe/files/2022/06/09/337672-MK031913A.jpg",
+        },
+        # 8. XFX Radeon RX 9060 8GB (Memory Kings)
+        {
+            "product_slug": "xfx-radeon-rx-9060-8gb-swift-oc",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/356033/radeon-rx-9060-8gb-128-bits-xfx-swift-oc-gaming",
+            "external_sku": "042413",
+            "image_url": "https://cdn.memorykings.pe/files/2026/07/08/356033-MK042413-A-3.jpg",
+        },
+        # 9. Kingston Fury Beast DDR4 16GB (Memory Kings)
+        {
+            "product_slug": "kingston-fury-beast-ddr4-16gb-3200mhz",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/329869/memoria-ddr4-16gb-3200-cl16-fury-beast-black",
+            "external_sku": "030196",
+            "image_url": "https://cdn.memorykings.pe/files/2021/09/27/329869-MK030196A.jpg",
+        },
+        # 10. Gigabyte H610M K D4 (Memory Kings)
+        {
+            "product_slug": "gigabyte-h610m-k-d4",
+            "store_domain": "memorykings.pe",
+            "product_url": "https://www.memorykings.pe/producto/349048/placa-gigabyte-h610m-k-d4-1700-matx",
+            "external_sku": "035894",
+            "image_url": "https://cdn.memorykings.pe/files/2026/08/11/349048-mk035894a1p.jpg",
         },
     ]
     store_products_map: dict[tuple[str, str], StoreProduct] = {}
@@ -769,9 +985,7 @@ def seed_demo_observations(
     return demo_count
 
 
-def seed_dev_data(
-    db: Session, include_demo_observations: bool | None = None
-) -> dict[str, int]:
+def seed_dev_data(db: Session, include_demo_observations: bool | None = None) -> dict[str, int]:
     """Seed database idempotently.
 
     By default (SEED_DEMO_OBSERVATIONS=false or unset):
@@ -782,9 +996,9 @@ def seed_dev_data(
     - Additionally inserts demonstrative visual observations.
     """
     if include_demo_observations is None:
-        include_demo_observations = (
-            os.getenv("SEED_DEMO_OBSERVATIONS", "false").strip().lower() in ("true", "1", "yes")
-        )
+        include_demo_observations = os.getenv(
+            "SEED_DEMO_OBSERVATIONS", "false"
+        ).strip().lower() in ("true", "1", "yes")
 
     counts, store_products_map = seed_canonical_catalog(db)
 
@@ -798,7 +1012,6 @@ def seed_dev_data(
     db.commit()
     logger.info("Seed completed. Created: %s", counts)
     return counts
-
 
 
 def main() -> None:

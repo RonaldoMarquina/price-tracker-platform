@@ -44,9 +44,9 @@ def test_seed_static_invariants():
     assert products_data_ast is not None, "Missing products_data in seed"
     assert store_products_data_ast is not None, "Missing store_products_data in seed"
 
-    # Assert exactly 22 canonical products and 29 store products defined
-    assert len(products_data_ast.elts) == 22
-    assert len(store_products_data_ast.elts) == 29
+    # Assert canonical products and store products defined
+    assert len(products_data_ast.elts) == 32
+    assert len(store_products_data_ast.elts) == 44
 
     # Check store products data
     sp_entries = []
@@ -88,9 +88,9 @@ def test_seed_static_invariants():
 
 
 def test_seed_default_creates_canonical_catalog_with_zero_fake_observations(db_session: Session):
-    """Verify default seed ensures 22 products, 29 store_products, and 0 fake observations."""
+    """Verify default seed ensures canonical products, store_products, and 0 fake observations."""
     counts, sp_map = seed_canonical_catalog(db_session)
-    assert len(sp_map) == 29
+    assert len(sp_map) == 44
 
     # Default seed_dev_data creates zero fake observations
     dev_counts = seed_dev_data(db_session, include_demo_observations=False)
@@ -162,7 +162,7 @@ def test_anomalous_ram_association_deactivated_and_excluded_from_dispatch(db_ses
     """Verify anomalous RAM is deactivated, stays inactive, and is excluded from dispatch."""
     # 1. Execute seed first time
     _counts, sp_map = seed_canonical_catalog(db_session)
-    assert len(sp_map) == 29
+    assert len(sp_map) == 44
 
     # Query Computer Shop RAM StoreProduct
     ram_slug = "kingston-fury-beast-rgb-ddr5-32gb-5200mhz"
@@ -234,7 +234,7 @@ def test_anomalous_ram_association_deactivated_and_excluded_from_dispatch(db_ses
 def test_seed_includes_five_new_verified_necs_products(db_session: Session):
     """Verify 5 new canonical products and NECS store associations are seeded with valid data."""
     _counts, sp_map = seed_canonical_catalog(db_session)
-    assert len(sp_map) == 29
+    assert len(sp_map) == 44
 
     expected_new = [
         {
@@ -311,4 +311,4 @@ def test_seed_includes_five_new_verified_necs_products(db_session: Session):
     second_counts, second_sp_map = seed_canonical_catalog(db_session)
     assert second_counts["products"] == 0
     assert second_counts["store_products"] == 0
-    assert len(second_sp_map) == 29
+    assert len(second_sp_map) == 44
