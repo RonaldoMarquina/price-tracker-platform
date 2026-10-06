@@ -13,9 +13,23 @@ from app.adapters.base import FatalScrapingError, StoreBlockedError, TransientSc
 logger = logging.getLogger("price-tracker.worker.network")
 
 DEFAULT_SCRAPER_USER_AGENT = (
-    "PriceTrackerPlatform/1.0 "
-    "(+https://github.com/RonaldoMarquina/price-tracker-platform; academic project)"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/129.0.0.0 Safari/537.36"
 )
+
+DEFAULT_SCRAPER_HEADERS = {
+    "User-Agent": DEFAULT_SCRAPER_USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "es-PE,es-419;q=0.9,es;q=0.8,en;q=0.7",
+    "Sec-Ch-Ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
 
 
 class SafeHttpClient:
@@ -89,7 +103,8 @@ class SafeHttpClient:
     ) -> httpx.Response:
         """Execute GET request with redirect validation and status classification."""
         effective_timeout = timeout if timeout is not None else self.default_timeout
-        effective_headers = {"User-Agent": self.user_agent}
+        effective_headers = dict(DEFAULT_SCRAPER_HEADERS)
+        effective_headers["User-Agent"] = self.user_agent
         if headers:
             effective_headers.update(headers)
 
