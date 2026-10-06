@@ -50,12 +50,16 @@ class WorkerSettings(BaseSettings):
             "DATABASE_URL" in kwargs_values and kwargs_values["DATABASE_URL"] is not None
         )
         if url_in_kwargs:
+            if self.DATABASE_URL.startswith("postgres://"):
+                self.DATABASE_URL = self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
             return
 
         kwargs_has_db = any(k in kwargs_values for k in discrete_fields)
         url_in_env = "DATABASE_URL" in os.environ and bool(os.environ["DATABASE_URL"].strip())
 
         if url_in_env and not kwargs_has_db:
+            if self.DATABASE_URL.startswith("postgres://"):
+                self.DATABASE_URL = self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
             return
 
         env_has_db = any(
