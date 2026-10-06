@@ -941,6 +941,15 @@ def seed_demo_observations(
             "captured_at": datetime(2026, 9, 20, 1, 0, 0, tzinfo=timezone.utc),
         },
         {
+            "product_slug": "deepcool-ak620-digital-se-argb-black",
+            "store_domain": "cyccomputer.pe",
+            "price": Decimal("232.09"),
+            "currency": "PEN",
+            "availability": "in_stock",
+            "source_hash": "cyc-obs-ak620-dig-02",
+            "captured_at": datetime(2026, 10, 6, 15, 30, 0, tzinfo=timezone.utc),
+        },
+        {
             "product_slug": "msi-pro-h610m-a-ddr4",
             "store_domain": "cyccomputer.pe",
             "price": Decimal("269.10"),
@@ -1176,6 +1185,7 @@ def seed_demo_observations(
             existing.currency = po_data["currency"]
             existing.availability = po_data["availability"]
             existing.price_condition = condition
+            existing.captured_at = po_data["captured_at"]
 
     return demo_count
 

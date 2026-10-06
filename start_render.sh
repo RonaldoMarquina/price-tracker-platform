@@ -11,7 +11,7 @@ echo "==> Running database migrations..."
 alembic upgrade head
 
 echo "==> Seeding canonical catalog and price observations..."
-python -m app.db.seed
+SEED_DEMO_OBSERVATIONS=true python -m app.db.seed
 
 echo "==> Starting background scraping worker..."
 PYTHONPATH=worker:. python -m app.main &
