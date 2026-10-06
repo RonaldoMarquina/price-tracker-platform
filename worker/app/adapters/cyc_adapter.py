@@ -139,15 +139,27 @@ class CycComputerAdapter(BaseStoreAdapter):
         if avail_el:
             containers.append(avail_el.get_text(" ", strip=True))
 
+        # Also inspect page content for prominent out-of-stock indicators (e.g. SIN STOCK)
+        page_text = soup.get_text(" ", strip=True).lower()
         combined_text = " ".join(containers).lower()
 
         # 1. Check for explicit 0 units or Out of Stock
-        if re.search(r"en stock\s+0\s+art", combined_text) or "agotado" in combined_text:
-            return "out_of_stock"
+        out_patterns = [
+            r"sin\s+stock",
+            r"fuera\s+de\s+stock",
+            r"agotado",
+            r"no\s+disponible",
+            r"en\s+stock\s*:?\s*0\s*art",
+            r"stock\s*:?\s*0\s*art",
+            r"0\s*art[ií]culos?\s+en\s+stock",
+        ]
+        for pat in out_patterns:
+            if re.search(pat, combined_text) or re.search(pat, page_text):
+                return "out_of_stock"
 
         # 2. Check for explicit positive units in stock
-        if re.search(r"en stock\s+[1-9]\d*\s+art", combined_text) or (
-            "en stock" in combined_text and "0 art" not in combined_text
+        if re.search(r"en\s+stock\s*:?\s*[1-9]\d*\s*art", combined_text) or (
+            "en stock" in combined_text and not re.search(r"0\s*art", combined_text)
         ):
             return "in_stock"
 

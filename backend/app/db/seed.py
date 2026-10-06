@@ -945,7 +945,7 @@ def seed_demo_observations(
             "store_domain": "cyccomputer.pe",
             "price": Decimal("232.09"),
             "currency": "PEN",
-            "availability": "in_stock",
+            "availability": "out_of_stock",
             "source_hash": "cyc-obs-ak620-dig-02",
             "captured_at": datetime(2026, 10, 6, 15, 30, 0, tzinfo=timezone.utc),
         },

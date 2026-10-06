@@ -14,7 +14,12 @@ export const StoreTable: React.FC<StoreTableProps> = ({ stores }) => {
       return <span style={{ color: "var(--color-text-secondary)", fontSize: "0.8125rem" }}>—</span>;
     }
     const lower = avail.toLowerCase();
-    if (lower.includes("agotado") || lower.includes("out_of_stock")) {
+    if (
+      lower.includes("agotado") ||
+      lower.includes("out_of_stock") ||
+      lower.includes("sin stock") ||
+      lower.includes("no disponible")
+    ) {
       return <Badge variant="danger">Agotado</Badge>;
     }
     if (lower.includes("disponible") || lower.includes("in_stock") || lower === "stock") {
