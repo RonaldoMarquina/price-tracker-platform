@@ -2,8 +2,8 @@ name: Daily Scraping Dispatch
 
 on:
   schedule:
-    # Runs daily at 11:00 UTC (6:00 AM PET / Peru local time)
-    - cron: '0 11 * * *'
+    # Runs daily at 11:15 UTC (6:15 AM PET / Peru local time) - avoids top-of-hour queue congestion
+    - cron: '15 11 * * *'
   workflow_dispatch:
     inputs:
       force:
