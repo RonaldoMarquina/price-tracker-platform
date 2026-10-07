@@ -161,14 +161,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
   const sortedStores = useMemo(() => {
     if (!product?.stores) return [];
-    if (!hasMultipleOffers) return product.stores;
-    return [...product.stores].sort((a, b) => {
+    const activeStores = product.stores.filter((s) => s.is_store_active !== false);
+    if (!hasMultipleOffers) return activeStores;
+    return [...activeStores].sort((a, b) => {
       const aInStock =
-        a.is_store_active !== false &&
         a.latest_price?.availability === "in_stock" &&
         a.latest_price?.amount;
       const bInStock =
-        b.is_store_active !== false &&
         b.latest_price?.availability === "in_stock" &&
         b.latest_price?.amount;
       if (aInStock && !bInStock) return -1;
