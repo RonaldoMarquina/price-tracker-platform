@@ -9,7 +9,10 @@ export interface StoreTableProps {
 }
 
 export const StoreTable: React.FC<StoreTableProps> = ({ stores }) => {
-  const getAvailabilityBadge = (avail: string | null) => {
+  const getAvailabilityBadge = (avail: string | null, isStoreActive: boolean = true) => {
+    if (!isStoreActive) {
+      return <Badge variant="default">No disponible</Badge>;
+    }
     if (!avail) {
       return <span style={{ color: "var(--color-text-secondary)", fontSize: "0.8125rem" }}>—</span>;
     }
@@ -150,7 +153,7 @@ export const StoreTable: React.FC<StoreTableProps> = ({ stores }) => {
                     </div>
                   </td>
                   <td style={{ padding: "1rem 1.25rem" }}>
-                    {getAvailabilityBadge(store.latest_price?.availability ?? null)}
+                    {getAvailabilityBadge(store.latest_price?.availability ?? null, isStoreActive)}
                   </td>
                   <td style={{ padding: "1rem 1.25rem" }}>
                     {store.latest_price?.amount ? (
